@@ -87,6 +87,7 @@ func buildSearchIndex(vaultDir string) []SearchEntry {
 			return nil
 		}
 		tags := extractTags(data) // extract tags from raw content (before stripping)
+		title := extractTitle(data) // extract frontmatter/H1 title from raw content
 		data = removeFrontmatter(data)
 		text := string(data)
 		text = stripTags.ReplaceAllString(text, " ")
@@ -97,7 +98,6 @@ func buildSearchIndex(vaultDir string) []SearchEntry {
 		text = stripMd.ReplaceAllString(text, "")
 		text = stripWs.ReplaceAllString(text, " ")
 		text = strings.TrimSpace(text)
-		title := extractTitle(data)
 		if title == "Untitled" {
 			title = toHTMLName(pageID)
 		}
