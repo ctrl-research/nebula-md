@@ -59,9 +59,10 @@ type GraphRef struct {
 
 // SearchEntry is a page entry in the search index
 type SearchEntry struct {
-	Title   string `json:"title"`
-	Path    string `json:"path"`
-	Content string `json:"content"` // plain text, stripped of markdown/html
+	Title   string   `json:"title"`
+	Path    string   `json:"path"`
+	Content string   `json:"content"` // plain text, stripped of markdown/html
+	Tags    []string `json:"tags"`
 }
 
 // buildSearchIndex walks the vault and builds a search index of all pages.
@@ -85,6 +86,8 @@ func buildSearchIndex(vaultDir string) []SearchEntry {
 		if err != nil {
 			return nil
 		}
+		tags := extractTags(data) // extract tags from raw content (before stripping)
+		title := extractTitle(data) // extract frontmatter/H1 title from raw content
 		data = removeFrontmatter(data)
 		text := string(data)
 		text = stripTags.ReplaceAllString(text, " ")
@@ -95,7 +98,6 @@ func buildSearchIndex(vaultDir string) []SearchEntry {
 		text = stripMd.ReplaceAllString(text, "")
 		text = stripWs.ReplaceAllString(text, " ")
 		text = strings.TrimSpace(text)
-		title := extractTitle(data)
 		if title == "Untitled" {
 			title = toHTMLName(pageID)
 		}
@@ -103,6 +105,7 @@ func buildSearchIndex(vaultDir string) []SearchEntry {
 			Title:   title,
 			Path:    pageID + ".html",
 			Content: text,
+			Tags:    tags,
 		})
 		return nil
 	})

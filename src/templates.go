@@ -133,6 +133,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.search-result { display: block; padding: 10px 12px; border-radius: 4px; text-decoration: none; color: var(--text); }
 	.search-result:hover { background: var(--card-bg); }
 	.search-result-title { font-weight: 600; margin-bottom: 4px; color: var(--heading); }
+	.search-result-tags { margin-bottom: 4px; display: flex; flex-wrap: wrap; gap: 6px; }
 	.search-result-snippet { font-size: 0.8em; color: var(--muted); line-height: 1.4; }
 	.search-result-snippet mark { background: rgba(255,220,50,0.3); color: inherit; border-radius: 2px; }
 	.search-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 0.9em; }
@@ -455,6 +456,7 @@ window.navTree = %[11]s;
             var score = 0;
             if (e.title.toLowerCase().indexOf(q) >= 0) score += 10;
             if (e.content.toLowerCase().indexOf(q) >= 0) score += 1;
+            if (e.tags) { for (var t = 0; t < e.tags.length; t++) { if (e.tags[t].toLowerCase().indexOf(q) >= 0) score += 5; } }
             if (score > 0) matches.push({ entry: e, score: score });
         }
         matches.sort(function(a, b) { return b.score - a.score; });
@@ -471,6 +473,7 @@ window.navTree = %[11]s;
             var prefix = depth > 0 ? '../'.repeat(depth) : '';
             html += '<a class="search-result" href="' + prefix + e.path + '">';
             html += '<div class="search-result-title">' + escHtml(e.title) + '</div>';
+            if (e.tags && e.tags.length > 0) { html += '<div class="search-result-tags">' + e.tags.map(function(t) { return '<span class="tag">#' + escHtml(t) + '</span>'; }).join('') + '</div>'; }
             html += '<div class="search-result-snippet">' + highlight(e.content, term) + '</div>';
             html += '</a>';
         }
