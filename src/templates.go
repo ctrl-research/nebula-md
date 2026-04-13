@@ -91,6 +91,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.full-graph-header button:hover { color: var(--text); }
 	#full-graph-container { flex: 1; overflow: hidden; }
 	#full-graph-container iframe { width: 100%; height: 100%; border: none; background: var(--bg); }
+	.full-graph-iframe { width: 100%; height: 100%; border: none; }
 	#local-graph { width: 100%; height: 180px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; }
 	.sidebar-section { margin-bottom: 16px; }
 	.sidebar-section h3 { margin: 0 0 8px; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
@@ -381,7 +382,7 @@ window.navTree = %[11]s;
             <h2>Full Vault Graph</h2>
             <button id="close-full-graph" aria-label="Close">&times;</button>
         </div>
-        <div id="full-graph-container"></div>
+        <div id="full-graph-container"><iframe id="graph-iframe" class="full-graph-iframe" src="" style="display:none;"></iframe></div>
     </div>
 </div>
 <script>
@@ -389,6 +390,7 @@ window.navTree = %[11]s;
 (function() {
     var overlay = document.getElementById('full-graph-overlay');
     var container = document.getElementById('full-graph-container');
+    var iframe = document.getElementById('graph-iframe');
     var openBtn = document.getElementById('open-full-graph');
     var closeBtn = document.getElementById('close-full-graph');
 
@@ -398,19 +400,23 @@ window.navTree = %[11]s;
         var depth = Math.max(0, segs.length - 1);
         var base = depth > 0 ? '../'.repeat(depth) : '';
         var graphPath = base + 'graph/index.html';
-        container.innerHTML = '<iframe src="' + graphPath + '" style="width:100%;height:100%;border:none;"></iframe>';
+        var iframe = document.getElementById('graph-iframe');
+        iframe.src = graphPath;
+        iframe.style.display = 'block';
         overlay.style.display = 'flex';
     });
 
     closeBtn.addEventListener('click', function() {
         overlay.style.display = 'none';
-        container.innerHTML = '';
+        iframe.style.display = 'none';
+        iframe.src = '';
     });
 
     overlay.addEventListener('click', function(e) {
         if (e.target === overlay) {
             overlay.style.display = 'none';
-            container.innerHTML = '';
+            iframe.style.display = 'none';
+            iframe.src = '';
         }
     });
 })();
