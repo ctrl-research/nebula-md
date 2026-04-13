@@ -479,7 +479,7 @@ window.navTree = %[11]s;
             var prefix = depth > 0 ? '../'.repeat(depth) : '';
             html += '<a class="search-result" href="' + prefix + e.path + '">';
             html += '<div class="search-result-title">' + escHtml(e.title) + '</div>';
-            if (e.tags && e.tags.length > 0) { html += '<div class="search-result-tags">' + e.tags.map(function(t) { return '<span class="tag">#' + escHtml(t) + '</span>'; }).join('') + '</div>'; }
+            if (e.tags && e.tags.length > 0) { html += '<div class="search-result-tags">' + e.tags.map(function(t) { return '<span class="tag">' + escHtml(t) + '</span>'; }).join('') + '</div>'; }
             html += '<div class="search-result-snippet">' + highlight(e.content, term) + '</div>';
             html += '</a>';
         }
