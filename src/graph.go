@@ -86,7 +86,7 @@ func buildSearchIndex(vaultDir string) []SearchEntry {
 		if err != nil {
 			return nil
 		}
-		tags := extractTags(data) // extract tags from raw content
+		tags := extractTags(data) // extract tags from raw content (before stripping)
 		data = removeFrontmatter(data)
 		text := string(data)
 		text = stripTags.ReplaceAllString(text, " ")
