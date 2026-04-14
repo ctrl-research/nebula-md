@@ -683,12 +683,12 @@ func generateStubHTML(pageID string) string {
 }
 
 // writeGraphViewer writes the full vault D3 graph viewer.
-func writeGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string) {
+func writeGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool) {
 	downloadD3(graphDir)
-	writeFullGraphViewer(graphDir, graphJSON, siteTheme, siteName)
+	writeFullGraphViewer(graphDir, graphJSON, siteTheme, siteName, nodeSizeByEdges)
 }
 
-func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string) {
+func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool) {
 	html := `<!DOCTYPE html>
 <html lang="en" data-theme="%s">
 <head>
@@ -749,6 +749,15 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         neighborOf[sid].add(tid);
         neighborOf[tid].add(sid);
     });
+    // Compute edge count per node for optional size-by-edges feature
+    var edgeCount = {};
+    graph.nodes.forEach(function(n) { edgeCount[n.id] = 0; });
+    graph.edges.forEach(function(e) {
+        var sid = typeof e.source === 'object' ? e.source.id : e.source;
+        var tid = typeof e.target === 'object' ? e.target.id : e.target;
+        edgeCount[sid] = (edgeCount[sid] || 0) + 1;
+        edgeCount[tid] = (edgeCount[tid] || 0) + 1;
+    });
     // BFS to find all nodes reachable from startId (entire connected component)
     function reachableNodes(startId) {
         var visited = new Set();
@@ -789,7 +798,14 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
             link.classed("dimmed", false);
         })
         .on("click", function(event, d) { if (!d.stub) { sim.stop(); graph.nodes.forEach(function(n) { n.fx = n.x; n.fy = n.y; }); window.location.href = "../" + d.path; } });
-    node.append("circle").attr("r", 8);
+    var nodeRadius = %t;
+    node.append("circle").attr("r", function(d) {
+        if (nodeRadius) {
+            var count = edgeCount[d.id] || 0;
+            return 8 + count * 1.5;
+        }
+        return 8;
+    });
     node.append("text").attr("dx", 12).attr("dy", 4).text(function(d) { return d.title; });
     sim.on("tick", function() {
         link.attr("x1", function(d) { return d.source.x; }).attr("y1", function(d) { return d.source.y; })
@@ -799,5 +815,5 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     </script>
 </body>
 </html>`
-	os.WriteFile(filepath.Join(graphDir, "index.html"), []byte(fmt.Sprintf(html, siteTheme, siteName, graphJSON)), 0644)
+	os.WriteFile(filepath.Join(graphDir, "index.html"), []byte(fmt.Sprintf(html, siteTheme, siteName, graphJSON, nodeSizeByEdges)), 0644)
 }

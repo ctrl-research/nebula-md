@@ -47,9 +47,10 @@ func isIgnored(path string) bool {
 
 // SiteConfig holds site-level configuration from .env or environment variables.
 type SiteConfig struct {
-	SiteName    string   // displayed in header
-	SiteTheme   string   // "dark" or "light"
-	IgnoredDirs []string // directory names to skip during vault walk
+	SiteName              string   // displayed in header
+	SiteTheme             string   // "dark" or "light"
+	IgnoredDirs           []string // directory names to skip during vault walk
+	GraphNodeSizeByEdges  bool     // size graph nodes by edge count
 }
 
 // readConfig reads site configuration from .env and environment variables.
@@ -99,6 +100,10 @@ func readConfig() SiteConfig {
 				cfg.IgnoredDirs = append(cfg.IgnoredDirs, part)
 			}
 		}
+	}
+	// Parse boolean flags
+	if v := os.Getenv("BASALT_GRAPH_NODE_SIZE_BY_EDGES"); v != "" {
+		cfg.GraphNodeSizeByEdges = v == "true" || v == "1" || v == "yes"
 	}
 	return cfg
 }
@@ -236,7 +241,7 @@ func run() error {
 	}
 	fmt.Printf("Search index: %d pages\n", len(searchIndex))
 
-	writeGraphViewer(graphDir, graphJSON, siteCfg.SiteTheme, siteCfg.SiteName)
+	writeGraphViewer(graphDir, graphJSON, siteCfg.SiteTheme, siteCfg.SiteName, siteCfg.GraphNodeSizeByEdges)
 	fmt.Println("Build complete.")
 	return nil
 }
