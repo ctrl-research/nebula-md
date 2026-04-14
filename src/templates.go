@@ -93,8 +93,8 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	#full-graph-container iframe { width: 100%; height: 100%; border: none; background: var(--bg); }
 	.full-graph-iframe { width: 100%; height: 100%; border: none; }
 	#local-graph { width: 100%; height: 180px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; }
-	#local-graph .node circle { fill: var(--graph-node); stroke: none; }
-	#local-graph .node.hovered circle, #local-graph .node.neighbor circle { fill: var(--link); }
+	#local-graph .node circle { fill: #999 !important; stroke: none; }
+	#local-graph .node.hovered circle, #local-graph .node.neighbor circle { fill: var(--link) !important; }
 	#local-graph .node.dimmed circle { opacity: 0.15; }
 	.sidebar-section { margin-bottom: 16px; }
 	.sidebar-section h3 { margin: 0 0 8px; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
