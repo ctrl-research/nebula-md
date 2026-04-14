@@ -80,6 +80,8 @@ func readConfig() SiteConfig {
 						cfg.SiteName = val
 					} else if key == "BASALT_SITE_THEME" && (val == "light" || val == "dark") {
 						cfg.SiteTheme = val
+					} else if key == "BASALT_GRAPH_NODE_SIZE_BY_EDGES" {
+						cfg.GraphNodeSizeByEdges = val == "true" || val == "1" || val == "yes"
 					}
 				}
 			}
