@@ -410,7 +410,7 @@ window.navTree = %[11]s;
             .force('center', _d3.forceCenter(w / 2, h / 2))
             .force('collision', _d3.forceCollide().radius(15));
         // Render nodes/links immediately (before sim ticks)
-        var link = linkG.selectAll('line').data(edges).enter().append('line').style('stroke', 'var(--link)').style('stroke-width', 1.5);
+        var link = linkG.selectAll('line').data(edges).enter().append('line').style('stroke', '#ccc').style('stroke-width', 1.5);
         var node = nodeG.selectAll('g').data(nodes).enter().append('g')
             .attr('class', function(d) { return 'node' + (d.stub ? ' stub' : '') + (d.current ? ' current' : ''); })
             .style('cursor', function(d) { return d.stub || d.current ? 'default' : 'pointer'; });
