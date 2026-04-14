@@ -749,6 +749,23 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         neighborOf[sid].add(tid);
         neighborOf[tid].add(sid);
     });
+    // BFS to find all nodes reachable from startId (entire connected component)
+    function reachableNodes(startId) {
+        var visited = new Set();
+        var queue = [startId];
+        visited.add(startId);
+        while (queue.length > 0) {
+            var curr = queue.shift();
+            var neighbors = neighborOf[curr] || new Set();
+            neighbors.forEach(function(nid) {
+                if (!visited.has(nid)) {
+                    visited.add(nid);
+                    queue.push(nid);
+                }
+            });
+        }
+        return visited;
+    }
     var node = zoomG.selectAll("g").data(graph.nodes).enter().append("g").attr("class", function(d) { return "node" + (d.stub ? " stub" : ""); })
         .call(d3.drag()
             .on("start", function(e) { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
@@ -756,14 +773,15 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
             .on("end", function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }))
         .on("mouseover", function(event, d) {
             var nid = d.id;
-            var neighbors = neighborOf[nid] || new Set();
+            // Find all nodes reachable from hovered node (entire connected component)
+            var connected = reachableNodes(nid);
             node.classed("hovered", function(n) { return n.id === nid; });
-            node.classed("neighbor", function(n) { return n.id !== nid && neighbors.has(n.id); });
-            node.classed("dimmed", function(n) { return n.id !== nid && !neighbors.has(n.id); });
+            node.classed("neighbor", function(n) { return n.id !== nid && connected.has(n.id); });
+            node.classed("dimmed", function(n) { return !connected.has(n.id); });
             link.classed("dimmed", function(l) {
                 var sid = l.source.id || l.source;
                 var tid = l.target.id || l.target;
-                return sid !== nid && tid !== nid;
+                return !connected.has(sid) || !connected.has(tid);
             });
         })
         .on("mouseout", function() {
