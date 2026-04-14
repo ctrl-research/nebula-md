@@ -34,12 +34,15 @@ func (p *MarkdownParser) ProcessFile(filePath, sourceRelPath string) (title stri
 		return "", nil, nil, nil, err
 	}
 
-	title = extractTitle(rawContent)
-	contentWithLinks, targets, rels := extractWikiLinks(rawContent, sourceRelPath)
+	// Strip comments first so frontmatter/title extraction ignores comment content
+	contentNoComments := stripObsidianComments(rawContent)
+	title = extractTitle(contentNoComments)
+	contentWithLinks, targets, rels := extractWikiLinks(contentNoComments, sourceRelPath)
 	linkTargets = targets
 	linkHrefs = rels
 
 	contentToRender := removeFrontmatter(contentWithLinks)
+	contentToRender = stripObsidianComments(contentToRender)
 
 	var buf bytes.Buffer
 	if err := p.markdown.Convert(contentToRender, &buf); err != nil {
@@ -83,6 +86,14 @@ func toHTMLName(mdPath string) string {
 
 func removeFrontmatter(data []byte) []byte {
 	re := regexp.MustCompile(`(?s)^---\s*\n.*?\n---\n?`)
+	return re.ReplaceAll(data, []byte{})
+}
+
+// stripObsidianComments removes Obsidian-style comments (%%...%%) from markdown.
+// Handles inline comments like "text %%comment%% more text" and line-based comments.
+func stripObsidianComments(data []byte) []byte {
+	// Match %%...%% content - handles multi-line as well
+	re := regexp.MustCompile(`(?s)%%.*?%%`)
 	return re.ReplaceAll(data, []byte{})
 }
 
