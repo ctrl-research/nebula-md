@@ -704,11 +704,10 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         .node { cursor: pointer; }
         .node circle { fill: var(--link); stroke: white; stroke-width: 2px; }
         .node.stub circle { fill: #e67e22; stroke: #fff; }
-        .node text { font-size: 12px; fill: currentColor; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-        .node.hovered text, .node.neighbor text { opacity: 1; }
+        .node text { font-size: 12px; fill: currentColor; opacity: 0.85; pointer-events: none; transition: opacity 0.2s; }
         .link { stroke: var(--link); stroke-width: 1px; transition: stroke-opacity 0.2s; }
         .node.dimmed circle { opacity: 0.2; }
-        .node.dimmed text { opacity: 0; }
+        .node.dimmed text { opacity: 0.3; }
         .link.dimmed { stroke-opacity: 0.5; }
         #legend { position: absolute; top: 20px; right: 20px; background: var(--card-bg); padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); font-size: 0.85em; border: 1px solid var(--border); }
         #legend h3 { margin: 0 0 10px; color: var(--heading); }
