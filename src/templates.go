@@ -93,6 +93,9 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	#full-graph-container iframe { width: 100%; height: 100%; border: none; background: var(--bg); }
 	.full-graph-iframe { width: 100%; height: 100%; border: none; }
 	#local-graph { width: 100%; height: 180px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; }
+	#local-graph .node circle { fill: var(--graph-node); stroke: none; }
+	#local-graph .node.hovered circle, #local-graph .node.neighbor circle { fill: var(--link); }
+	#local-graph .node.dimmed circle { opacity: 0.15; }
 	.sidebar-section { margin-bottom: 16px; }
 	.sidebar-section h3 { margin: 0 0 8px; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
 	.sidebar-links { background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.85em; }
@@ -414,6 +417,19 @@ window.navTree = %[11]s;
             .on('drag', function(e) { e.subject.fx = e.x; e.subject.fy = e.y; })
             .on('end', function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
         node.on('click', function(e, d) { if (!d.stub && !d.current) window.location.href = d.href; });
+        node.on('mouseover', function(e, d) {
+            var nid = d.id;
+            var connected = new Set([pageId]);
+            node.classed('hovered', function(n) { return n.id === nid; });
+            node.classed('neighbor', function(n) { return n.id !== nid && (n.id === pageId || d.id === pageId); });
+            node.classed('dimmed', function(n) { return n.id !== nid && n.id !== pageId && d.id !== pageId; });
+            link.style('stroke', function(l) { return (l.source.id === nid || l.target.id === nid || l.source.id === pageId || l.target.id === pageId) ? 'var(--link)' : '#ccc'; });
+            link.style('stroke-opacity', function(l) { return (l.source.id === nid || l.target.id === nid || l.source.id === pageId || l.target.id === pageId) ? 1 : 0.15; });
+        });
+        node.on('mouseout', function() {
+            node.classed('hovered', false).classed('neighbor', false).classed('dimmed', false);
+            link.style('stroke', '#ccc').style('stroke-opacity', 1);
+        });
         node.append('circle').attr('r', function(d) { return d.current ? 7 : 4 }).style('fill', function(d) { return d.stub ? '#e67e22' : '#999'; });
         node.append('text').attr('dx', 0).attr('dy', function(d) { var r = d.current ? 7 : 4; return r + 10; }).attr('text-anchor', 'middle').style('font-size', '9px').style('fill', 'currentColor').style('opacity', '0.8').text(function(d) { return d.title; });
         console.log('graph: sim created, node count=' + nodes.length);
@@ -696,8 +712,8 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Graph View — %s</title>
     <style>
-        :root, [data-theme="dark"] { --bg: #1e1e1e; --text: #e0e0e0; --border: #3a3a3a; --heading: #ffffff; --card-bg: #2a2a2a; --link: #6bb3d9; }
-        [data-theme="light"] { --bg: #f8f8f8; --text: #333; --border: #e1e4e8; --heading: #1a1a1a; --card-bg: #ffffff; --link: #2980b9; }
+        :root, [data-theme="dark"] { --bg: #1e1e1e; --text: #e0e0e0; --border: #3a3a3a; --heading: #ffffff; --card-bg: #2a2a2a; --link: #6bb3d9; --graph-node: #999; }
+        [data-theme="light"] { --bg: #f8f8f8; --text: #333; --border: #e1e4e8; --heading: #1a1a1a; --card-bg: #ffffff; --link: #2980b9; --graph-node: #ccc; }
         html, body { overflow: hidden; height: 100%%; margin: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
         #graph { width: 100vw; height: 100vh; overflow: hidden; }
