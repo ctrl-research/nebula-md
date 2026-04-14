@@ -316,9 +316,9 @@ func processCallouts(htmlBody []byte) []byte {
 			if info.fold == "+" {
 				openAttr = " open"
 			}
-			replacement = fmt.Sprintf(`<details class="callout" data-callout="%s"%s><summary class="callout-summary"><div class="callout-icon">%s</div><div class="callout-title">%s</div></summary><div class="callout-body"><div class="callout-content">%s</div></div></details>`, info.typ, openAttr, icon, info.title, info.content)
+			replacement = fmt.Sprintf(`<details class="callout" data-callout="%s"%s><summary class="callout-title"><span class="callout-icon">%s</span>%s</summary><div class="callout-content">%s</div></details>`, info.typ, openAttr, icon, info.title, info.content)
 		} else {
-			replacement = fmt.Sprintf(`<div class="callout" data-callout="%s"><div class="callout-icon">%s</div><div class="callout-body"><div class="callout-title">%s</div><div class="callout-content">%s</div></div></div>`, info.typ, icon, info.title, info.content)
+			replacement = fmt.Sprintf(`<div class="callout" data-callout="%s"><div class="callout-title"><span class="callout-icon">%s</span>%s</div><div class="callout-content">%s</div></div>`, info.typ, icon, info.title, info.content)
 		}
 		result = result[:info.fullStart] + replacement + result[info.fullEnd:]
 	}

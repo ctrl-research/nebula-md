@@ -105,11 +105,11 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.tags-label { font-size: 0.8em; color: var(--muted); margin-right: 4px; }
 	.tag { display: inline-block; padding: 2px 8px; background: var(--link); color: var(--bg); border-radius: 12px; font-size: 0.8em; font-weight: 500; opacity: 0.85; }
 	/* Callouts — Obsidian-style */
-	.callout { border: 1px solid var(--callout-border, var(--border)); border-left: 4px solid var(--callout-color, var(--link)); border-radius: 6px; background: var(--callout-bg, var(--card-bg)); margin: 16px 0; overflow: hidden; }
-	.callout-icon { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--callout-border, var(--border)); background: var(--callout-title-bg, var(--sidebar-bg)); color: var(--callout-color, var(--link)); }
-	.callout-icon svg { flex-shrink: 0; }
-	.callout-body { display: block; }
-	.callout-title { font-weight: 600; font-size: 0.875em; padding: 8px 12px; border-bottom: 1px solid var(--callout-border, var(--border)); background: var(--callout-title-bg, var(--sidebar-bg)); color: var(--callout-color, var(--link)); }
+	/* Callout base styles — matches Obsidian */
+	.callout { border: 1px solid var(--callout-border, var(--border)); border-left: 3px solid var(--callout-color, var(--link)); border-radius: 6px; margin: 16px 0; background: var(--callout-bg, var(--card-bg)); }
+	.callout-title { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--callout-title-bg, var(--sidebar-bg)); color: var(--callout-color, var(--link)); border-bottom: 1px solid var(--callout-border, var(--border)); font-weight: 600; font-size: 0.875em; }
+	.callout-icon { display: inline-flex; align-items: center; flex-shrink: 0; }
+	.callout-icon svg { width: 16px; height: 16px; }
 	.callout-content { padding: 12px; }
 	.callout-content > p:last-child { margin-bottom: 0; }
 	.callout-content > *:last-child { margin-bottom: 0; }
@@ -146,12 +146,15 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.callout[data-callout="info"] { --callout-bg: var(--callout-info-bg); --callout-border: var(--callout-info-border); --callout-color: var(--callout-info-color); --callout-title-bg: var(--callout-info-title-bg); }
 	.callout[data-callout="success"], .callout[data-callout="check"], .callout[data-callout="done"] { --callout-bg: var(--callout-success-bg); --callout-border: var(--callout-success-border); --callout-color: var(--callout-success-color); --callout-title-bg: var(--callout-success-title-bg); }
 	.callout[data-callout="question"], .callout[data-callout="help"], .callout[data-callout="faq"] { --callout-bg: var(--callout-question-bg); --callout-border: var(--callout-question-border); --callout-color: var(--callout-question-color); --callout-title-bg: var(--callout-question-title-bg); }
-	/* Foldable callout summary (clickable header) */
-	.callout summary.callout-summary { display: flex; align-items: center; padding: 8px 12px; background: var(--callout-title-bg, var(--sidebar-bg)); color: var(--callout-color, var(--link)); cursor: pointer; list-style: none; user-select: none; }
-	.callout summary.callout-summary::-webkit-details-marker { display: none; }
-	.callout summary.callout-summary::before { content: "▶"; font-size: 0.7em; margin-right: 8px; transition: transform 0.15s; }
-	.callout[open] summary.callout-summary::before { transform: rotate(90deg); }
-	.callout summary.callout-title { font-weight: 600; font-size: 0.875em; }
+	/* Foldable callout (details/summary — matches Obsidian) */
+	.callout details { border: none; background: transparent; }
+	.callout summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--callout-title-bg, var(--sidebar-bg)); color: var(--callout-color, var(--link)); cursor: pointer; font-weight: 600; font-size: 0.875em; list-style: none; user-select: none; }
+	.callout summary::-webkit-details-marker { display: none; }
+	.callout summary::before { content: "▶"; font-size: 0.7em; transition: transform 0.15s; }
+	.callout[open] summary::before { transform: rotate(90deg); }
+	.callout summary .callout-icon { display: inline-flex; align-items: center; flex-shrink: 0; }
+	.callout summary .callout-icon svg { width: 16px; height: 16px; }
+	.callout summary .callout-title { padding: 0; background: transparent; border: none; }
 	.callout summary.callout-icon { display: flex; align-items: center; margin-right: 8px; }
 	.callout summary.callout-icon svg { flex-shrink: 0; }
 	/* Collapsible sections */
