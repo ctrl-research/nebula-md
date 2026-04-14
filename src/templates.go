@@ -29,16 +29,17 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.mobile-header { display: none; }
 	@media (max-width: 768px) {
 		.mobile-nav-toggle { display: block; background: var(--sidebar-bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px 12px; font-size: 1.2em; cursor: pointer; }
-		.mobile-header { position: fixed; top: 0; left: 0; right: 0; z-index: 998; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--sidebar-bg); border-bottom: 1px solid var(--border); }
+		.mobile-header { position: fixed; top: 0; left: 0; right: 0; z-index: 998; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--sidebar-bg); border-bottom: 1px solid var(--border); height: 52px; box-sizing: border-box; }
 		.mobile-header .mobile-site-name { flex: 1; font-size: 1em; font-weight: 600; color: var(--heading); margin: 0; padding: 0; border: none; }
-		.layout { grid-template-columns: 1fr; }
+		.layout { grid-template-columns: 1fr; padding-top: 52px; }
 		.sidebar-nav {
 			position: fixed; top: 0; left: 0; height: 100vh; width: 280px; z-index: 1000;
 			transform: translateX(-100%); transition: transform 0.25s ease;
 			box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+			display: none;
 		}
-		.sidebar-nav.open { transform: translateX(0); }
-		.sidebar-nav.closed { transform: translateX(-100%); }
+		.sidebar-nav.open { transform: translateX(0); display: block; }
+		.sidebar-nav.closed { transform: translateX(-100%); display: none; }
 		.content-col { padding: 16px 20px; align-self: start; }
 		.sidebar-right { display: block; border-left: none; border-top: 1px solid var(--border); position: static; margin-top: 0; }
 		.sidebar-right .sidebar-section { margin-bottom: 8px; }
@@ -223,7 +224,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
         <span class="mobile-site-name">%[12]s</span>
     </div>
 <div class="layout">
-    <aside class="sidebar-nav">
+    <aside class="sidebar-nav closed">
         <div class="site-name">%[12]s</div>
         <div class="sidebar-header">
             <button id="close-nav" class="close-nav" aria-label="Close navigation">✕</button>
