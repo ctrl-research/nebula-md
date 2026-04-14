@@ -815,5 +815,9 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     </script>
 </body>
 </html>`
-	os.WriteFile(filepath.Join(graphDir, "index.html"), []byte(fmt.Sprintf(html, siteTheme, siteName, graphJSON, nodeSizeByEdges)), 0644)
+	data := fmt.Sprintf(html, siteTheme, siteName, graphJSON, nodeSizeByEdges)
+	err := os.WriteFile(filepath.Join(graphDir, "index.html"), []byte(data), 0644)
+	if err != nil {
+		fmt.Printf("Error writing graph index.html: %v\n", err)
+	}
 }
