@@ -706,7 +706,7 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         .node.stub circle { fill: #e67e22; stroke: #fff; }
         .node text { font-size: 12px; fill: currentColor; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
         .node.hovered text, .node.neighbor text { opacity: 1; }
-        .link { stroke: var(--link); stroke-width: 2px; transition: stroke-opacity 0.2s; }
+        .link { stroke: var(--link); stroke-width: 1px; transition: stroke-opacity 0.2s; }
         .node.dimmed circle { opacity: 0.2; }
         .node.dimmed text { opacity: 0; }
         .link.dimmed { stroke-opacity: 0.5; }
@@ -734,8 +734,8 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     var zoomG = svg.append("g");
     svg.call(d3.zoom().scaleExtent([0.1, 4]).on("zoom", function(e) { zoomG.attr("transform", e.transform); }));
     var sim = d3.forceSimulation(graph.nodes)
-        .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; }).distance(40))
-        .force("charge", d3.forceManyBody().strength(0))
+        .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; }).distance(180))
+        .force("charge", d3.forceManyBody().strength(-2))
         .force("center", d3.forceCenter(w / 2, h / 2))
         .force("collision", d3.forceCollide().radius(20))
         .alpha(0.3);
@@ -802,7 +802,7 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     node.append("circle").attr("r", function(d) {
         if (nodeRadius) {
             var count = edgeCount[d.id] || 0;
-            return 8 + count * 1.5;
+            return 8 + count * 0.75;
         }
         return 8;
     });
