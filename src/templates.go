@@ -33,7 +33,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 		.mobile-header .mobile-site-name { flex: 1; font-size: 1em; font-weight: 600; color: var(--heading); margin: 0; padding: 0; border: none; }
 		.layout { grid-template-columns: 1fr; padding-top: 52px; }
 		.sidebar-nav {
-			position: fixed; top: 0; left: 0; height: 100vh; width: 280px; z-index: 1000;
+			position: fixed; top: 0; left: 0; height: 100vh; width: 100vw; z-index: 1000;
 			transform: translateX(-100%); transition: transform 0.25s ease;
 			box-shadow: 2px 0 8px rgba(0,0,0,0.3);
 			display: none;
@@ -80,10 +80,6 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.graph-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 	.graph-header button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.9em; padding: 0; line-height: 1; }
 	.graph-header button:hover { color: var(--text); }
-	.close-nav { display: none; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1em; padding: 0; }
-	@media (max-width: 768px) {
-		.close-nav { display: block; }
-	}
 	.full-graph-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 	.full-graph-modal { background: var(--sidebar-bg); border: 1px solid var(--border); border-radius: 8px; width: 90vw; height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
 	.full-graph-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
@@ -227,7 +223,6 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
     <aside class="sidebar-nav closed">
         <div class="site-name">%[12]s</div>
         <div class="sidebar-header">
-            <button id="close-nav" class="close-nav" aria-label="Close navigation">✕</button>
             <h2>Browse</h2>
             <button class="theme-toggle" id="theme-toggle" title="Toggle dark/light mode">&#9788;</button>
         </div>
@@ -259,13 +254,17 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 window.siteName = %[14]s;
     // Mobile nav toggle
     var navToggle = document.getElementById('mobile-nav-toggle');
-    var closeNav = document.getElementById('close-nav');
     var sidebarNav = document.querySelector('.sidebar-nav');
     if (navToggle) {
-        navToggle.addEventListener('click', function() { sidebarNav.classList.toggle('open'); sidebarNav.classList.remove('closed'); });
-    }
-    if (closeNav) {
-        closeNav.addEventListener('click', function() { sidebarNav.classList.remove('open'); sidebarNav.classList.add('closed'); });
+        navToggle.addEventListener('click', function() { 
+            if (sidebarNav.classList.contains('open')) {
+                sidebarNav.classList.remove('open');
+                sidebarNav.classList.add('closed');
+            } else {
+                sidebarNav.classList.remove('closed');
+                sidebarNav.classList.add('open');
+            }
+        });
     }
 window.siteTheme = "%[13]s";
 window.pageGraphData = %[10]s;
