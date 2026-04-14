@@ -430,7 +430,7 @@ window.navTree = %[11]s;
             node.classed('hovered', false).classed('neighbor', false).classed('dimmed', false);
             link.style('stroke', '#ccc').style('stroke-opacity', 1);
         });
-        node.append('circle').attr('r', function(d) { return d.current ? 7 : 4 }).style('fill', function(d) { return d.stub ? '#e67e22' : '#999'; });
+        node.append('circle').attr('r', function(d) { return d.current ? 7 : 4 });
         node.append('text').attr('dx', 0).attr('dy', function(d) { var r = d.current ? 7 : 4; return r + 10; }).attr('text-anchor', 'middle').style('font-size', '9px').style('fill', 'currentColor').style('opacity', '0.8').text(function(d) { return d.title; });
         console.log('graph: sim created, node count=' + nodes.length);
         console.log('graph: link selection=' + (typeof link) + ', node selection=' + (typeof node));
