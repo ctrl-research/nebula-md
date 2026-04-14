@@ -18,9 +18,9 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 
 	css := `
 	/* Dark mode (default) */
-	:root, [data-theme="dark"] { --bg: #1e1e1e; --text: #e0e0e0; --link: #6bb3d9; --sidebar-bg: #252525; --border: #3a3a3a; --heading: #ffffff; --muted: #888888; --card-bg: #2a2a2a; }
+	:root, [data-theme="dark"] { --bg: #1e1e1e; --text: #e0e0e0; --link: #6bb3d9; --sidebar-bg: #252525; --border: #3a3a3a; --heading: #ffffff; --muted: #888888; --card-bg: #2a2a2a; --graph-node: #999; }
 	/* Light mode */
-	[data-theme="light"] { --bg: #f8f8f8; --text: #333; --link: #2980b9; --sidebar-bg: #f0f0f0; --border: #e1e4e8; --heading: #1a1a1a; --muted: #888888; --card-bg: #ffffff; }
+	[data-theme="light"] { --bg: #f8f8f8; --text: #333; --link: #2980b9; --sidebar-bg: #f0f0f0; --border: #e1e4e8; --heading: #1a1a1a; --muted: #888888; --card-bg: #ffffff; --graph-node: #ccc; }
 	* { box-sizing: border-box; }
 	body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; margin: 0; background: var(--bg); color: var(--text); }
 	.layout { display: grid; grid-template-columns: 1fr 2fr 1fr; width: 100%; max-width: 100vw; align-items: start; }
@@ -406,7 +406,7 @@ window.navTree = %[11]s;
             .force('center', _d3.forceCenter(w / 2, h / 2))
             .force('collision', _d3.forceCollide().radius(15));
         // Render nodes/links immediately (before sim ticks)
-        var link = linkG.selectAll('line').data(edges).enter().append('line').style('stroke', 'var(--link)').style('stroke-width', 1.5);
+        var link = linkG.selectAll('line').data(edges).enter().append('line').style('stroke', '#ccc').style('stroke-width', 1.5);
         var node = nodeG.selectAll('g').data(nodes).enter().append('g')
             .style('cursor', function(d) { return d.stub || d.current ? 'default' : 'pointer'; });
         node.call(_d3.drag()
@@ -414,7 +414,7 @@ window.navTree = %[11]s;
             .on('drag', function(e) { e.subject.fx = e.x; e.subject.fy = e.y; })
             .on('end', function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
         node.on('click', function(e, d) { if (!d.stub && !d.current) window.location.href = d.href; });
-        node.append('circle').attr('r', function(d) { return d.current ? 7 : 4 }).style('fill', function(d) { return d.stub ? '#e67e22' : (d.current ? '#2980b9' : '#3498db'); });
+        node.append('circle').attr('r', function(d) { return d.current ? 7 : 4 }).style('fill', function(d) { return d.stub ? '#e67e22' : '#999'; });
         node.append('text').attr('dx', 0).attr('dy', function(d) { var r = d.current ? 7 : 4; return r + 10; }).attr('text-anchor', 'middle').style('font-size', '9px').style('fill', 'currentColor').style('opacity', '0.8').text(function(d) { return d.title; });
         console.log('graph: sim created, node count=' + nodes.length);
         console.log('graph: link selection=' + (typeof link) + ', node selection=' + (typeof node));
@@ -702,13 +702,15 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
         #graph { width: 100vw; height: 100vh; overflow: hidden; }
         .node { cursor: pointer; }
-        .node circle { fill: var(--link); stroke: none; }
+        .node circle { fill: var(--graph-node); stroke: none; }
         .node.stub circle { fill: #e67e22; }
         .node text { font-size: 12px; fill: currentColor; opacity: 0.85; pointer-events: none; transition: opacity 0.2s; }
-        .link { stroke: var(--link); stroke-width: 1px; transition: stroke-opacity 0.2s; }
-        .node.dimmed circle { opacity: 0.2; }
+        .link { stroke: #ccc; stroke-width: 1px; transition: stroke-opacity 0.2s; }
+        .node.dimmed circle { opacity: 0.15; }
+        .node.hovered circle, .node.neighbor circle { fill: var(--link); }
         .node.dimmed text { opacity: 0.3; }
-        .link.dimmed { stroke-opacity: 0.5; }
+        .link.dimmed { stroke-opacity: 0.15; }
+        .link.connected { stroke: var(--link); stroke-opacity: 1; }
         #legend { position: absolute; top: 20px; right: 20px; background: var(--card-bg); padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); font-size: 0.85em; border: 1px solid var(--border); }
         #legend h3 { margin: 0 0 10px; color: var(--heading); }
         #legend span { display: inline-block; width: 12px; height: 12px; border-radius: 50%%; margin-right: 6px; vertical-align: middle; }
@@ -791,10 +793,16 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
                 var tid = l.target.id || l.target;
                 return !connected.has(sid) || !connected.has(tid);
             });
+            link.classed("connected", function(l) {
+                var sid = l.source.id || l.source;
+                var tid = l.target.id || l.target;
+                return connected.has(sid) && connected.has(tid);
+            });
         })
         .on("mouseout", function() {
             node.classed("hovered", false).classed("neighbor", false).classed("dimmed", false);
             link.classed("dimmed", false);
+            link.classed("connected", false);
         })
         .on("click", function(event, d) { if (!d.stub) { sim.stop(); graph.nodes.forEach(function(n) { n.fx = n.x; n.fy = n.y; }); window.location.href = "../" + d.path; } });
     var nodeRadius = %t;
