@@ -104,6 +104,33 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.tags { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 	.tags-label { font-size: 0.8em; color: var(--muted); margin-right: 4px; }
 	.tag { display: inline-block; padding: 2px 8px; background: var(--link); color: var(--bg); border-radius: 12px; font-size: 0.8em; font-weight: 500; opacity: 0.85; }
+	/* Callouts */
+	.callout { border-left: 4px solid var(--link); background: var(--card-bg); border-radius: 4px; padding: 12px 16px; margin: 16px 0; }
+	.callout-header { font-weight: 600; margin-bottom: 6px; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.03em; }
+	.callout-body { font-size: 0.95em; }
+	.callout-body p:last-child { margin-bottom: 0; }
+	.callout-note { border-color: #6bb3d9; }
+	.callout-note .callout-header { color: #6bb3d9; }
+	.callout-tip, .callout-hint { border-color: #2ecc71; }
+	.callout-tip .callout-header, .callout-hint .callout-header { color: #2ecc71; }
+	.callout-warning, .callout-caution { border-color: #f39c12; }
+	.callout-warning .callout-header, .callout-caution .callout-header { color: #f39c12; }
+	.callout-danger, .callout-error { border-color: #e74c3c; }
+	.callout-danger .callout-header, .callout-error .callout-header { color: #e74c3c; }
+	.callout-example { border-color: #9b59b6; }
+	.callout-example .callout-header { color: #9b59b6; }
+	.callout-info { border-color: #6bb3d9; }
+	.callout-info .callout-header { color: #6bb3d9; }
+	.callout-success, .callout-check { border-color: #2ecc71; }
+	.callout-success .callout-header, .callout-check .callout-header { color: #2ecc71; }
+	/* Collapsible sections */
+	details.collapsible { border: 1px solid var(--border); border-radius: 4px; margin: 16px 0; overflow: hidden; }
+	details.collapsible summary { padding: 10px 14px; background: var(--card-bg); cursor: pointer; font-weight: 600; font-size: 0.95em; user-select: none; list-style: none; }
+	details.collapsible summary::-webkit-details-marker { display: none; }
+	details.collapsible summary::before { content: "▶ "; font-size: 0.8em; transition: transform 0.15s; display: inline-block; }
+	details.collapsible[open] summary::before { transform: rotate(90deg); }
+	details.collapsible .collapsible-content { padding: 12px 14px; border-top: 1px solid var(--border); }
+	details.collapsible .collapsible-content p:last-child { margin-bottom: 0; }
 	/* Table of contents */
 	.toc { margin-top: 16px; font-size: 0.85em; }
 	.toc h3 { margin: 0 0 8px; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
