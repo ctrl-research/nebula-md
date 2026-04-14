@@ -683,12 +683,12 @@ func generateStubHTML(pageID string) string {
 }
 
 // writeGraphViewer writes the full vault D3 graph viewer.
-func writeGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string) {
+func writeGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool) {
 	downloadD3(graphDir)
-	writeFullGraphViewer(graphDir, graphJSON, siteTheme, siteName)
+	writeFullGraphViewer(graphDir, graphJSON, siteTheme, siteName, nodeSizeByEdges)
 }
 
-func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string) {
+func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool) {
 	html := `<!DOCTYPE html>
 <html lang="en" data-theme="%s">
 <head>
@@ -706,7 +706,7 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         .node.stub circle { fill: #e67e22; stroke: #fff; }
         .node text { font-size: 12px; fill: currentColor; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
         .node.hovered text, .node.neighbor text { opacity: 1; }
-        .link { stroke: var(--link); stroke-width: 2px; transition: stroke-opacity 0.2s; }
+        .link { stroke: var(--link); stroke-width: 1px; transition: stroke-opacity 0.2s; }
         .node.dimmed circle { opacity: 0.2; }
         .node.dimmed text { opacity: 0; }
         .link.dimmed { stroke-opacity: 0.5; }
@@ -734,8 +734,8 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     var zoomG = svg.append("g");
     svg.call(d3.zoom().scaleExtent([0.1, 4]).on("zoom", function(e) { zoomG.attr("transform", e.transform); }));
     var sim = d3.forceSimulation(graph.nodes)
-        .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; }).distance(40))
-        .force("charge", d3.forceManyBody().strength(0))
+        .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; }).distance(180))
+        .force("charge", d3.forceManyBody().strength(-2))
         .force("center", d3.forceCenter(w / 2, h / 2))
         .force("collision", d3.forceCollide().radius(20))
         .alpha(0.3);
@@ -749,6 +749,32 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         neighborOf[sid].add(tid);
         neighborOf[tid].add(sid);
     });
+    // Compute edge count per node for optional size-by-edges feature
+    var edgeCount = {};
+    graph.nodes.forEach(function(n) { edgeCount[n.id] = 0; });
+    graph.edges.forEach(function(e) {
+        var sid = typeof e.source === 'object' ? e.source.id : e.source;
+        var tid = typeof e.target === 'object' ? e.target.id : e.target;
+        edgeCount[sid] = (edgeCount[sid] || 0) + 1;
+        edgeCount[tid] = (edgeCount[tid] || 0) + 1;
+    });
+    // BFS to find all nodes reachable from startId (entire connected component)
+    function reachableNodes(startId) {
+        var visited = new Set();
+        var queue = [startId];
+        visited.add(startId);
+        while (queue.length > 0) {
+            var curr = queue.shift();
+            var neighbors = neighborOf[curr] || new Set();
+            neighbors.forEach(function(nid) {
+                if (!visited.has(nid)) {
+                    visited.add(nid);
+                    queue.push(nid);
+                }
+            });
+        }
+        return visited;
+    }
     var node = zoomG.selectAll("g").data(graph.nodes).enter().append("g").attr("class", function(d) { return "node" + (d.stub ? " stub" : ""); })
         .call(d3.drag()
             .on("start", function(e) { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
@@ -756,14 +782,15 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
             .on("end", function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }))
         .on("mouseover", function(event, d) {
             var nid = d.id;
-            var neighbors = neighborOf[nid] || new Set();
+            // Find all nodes reachable from hovered node (entire connected component)
+            var connected = reachableNodes(nid);
             node.classed("hovered", function(n) { return n.id === nid; });
-            node.classed("neighbor", function(n) { return n.id !== nid && neighbors.has(n.id); });
-            node.classed("dimmed", function(n) { return n.id !== nid && !neighbors.has(n.id); });
+            node.classed("neighbor", function(n) { return n.id !== nid && connected.has(n.id); });
+            node.classed("dimmed", function(n) { return !connected.has(n.id); });
             link.classed("dimmed", function(l) {
                 var sid = l.source.id || l.source;
                 var tid = l.target.id || l.target;
-                return sid !== nid && tid !== nid;
+                return !connected.has(sid) || !connected.has(tid);
             });
         })
         .on("mouseout", function() {
@@ -771,7 +798,14 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
             link.classed("dimmed", false);
         })
         .on("click", function(event, d) { if (!d.stub) { sim.stop(); graph.nodes.forEach(function(n) { n.fx = n.x; n.fy = n.y; }); window.location.href = "../" + d.path; } });
-    node.append("circle").attr("r", 8);
+    var nodeRadius = %t;
+    node.append("circle").attr("r", function(d) {
+        if (nodeRadius) {
+            var count = edgeCount[d.id] || 0;
+            return 8 + count * 0.75;
+        }
+        return 8;
+    });
     node.append("text").attr("dx", 12).attr("dy", 4).text(function(d) { return d.title; });
     sim.on("tick", function() {
         link.attr("x1", function(d) { return d.source.x; }).attr("y1", function(d) { return d.source.y; })
@@ -781,5 +815,9 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     </script>
 </body>
 </html>`
-	os.WriteFile(filepath.Join(graphDir, "index.html"), []byte(fmt.Sprintf(html, siteTheme, siteName, graphJSON)), 0644)
+	data := fmt.Sprintf(html, siteTheme, siteName, graphJSON, nodeSizeByEdges)
+	err := os.WriteFile(filepath.Join(graphDir, "index.html"), []byte(data), 0644)
+	if err != nil {
+		fmt.Printf("Error writing graph index.html: %v\n", err)
+	}
 }
