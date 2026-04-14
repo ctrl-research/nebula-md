@@ -202,8 +202,23 @@ func processCallouts(htmlBody []byte) []byte {
 		}
 
 		// Find end of this blockquote
+		// If there are nested blockquotes, find the </blockquote> that closes THIS blockquote
 		s := string(htmlBody[m[1]:])
-		bqEndIdx := strings.Index(s, "</blockquote>")
+		bqEndIdx := -1
+		bqDepth := 1 // We're already inside one <blockquote> (this one, starting at m[0])
+		for i := 0; i < len(s); i++ {
+			if strings.HasPrefix(s[i:], "<blockquote>") {
+				bqDepth++
+				i += 11 // skip past <blockquote>
+			} else if strings.HasPrefix(s[i:], "</blockquote>") {
+				bqDepth--
+				if bqDepth == 0 {
+					bqEndIdx = i
+					break
+				}
+				i += 12 // skip past </blockquote>
+			}
+		}
 		if bqEndIdx < 0 {
 			continue
 		}
@@ -220,11 +235,18 @@ func processCallouts(htmlBody []byte) []byte {
 		// If afterClose has only whitespace/newlines, the content is inline
 		// If there are <p> tags between m[1]+closeP and bqEnd, those are the content paragraphs
 		contentStart := m[0] + closeP + 5 // after </p>
-		afterClose := strings.TrimLeft(string(htmlBody[contentStart:bqEnd]), "\n\r ")
-		afterCloseTrim := afterClose
-		if len(afterCloseTrim) > 80 {
-			afterCloseTrim = afterCloseTrim[:80] + "..."
+		
+		// Content extraction - stop at nested blockquotes
+		// Find where content ends (before any nested blockquote)
+		contentEnd := bqEnd
+		s2 := string(htmlBody[contentStart:bqEnd])
+		if strings.Contains(s2, "<blockquote>") {
+			// There's a nested blockquote - content ends before it
+			nestedBQ := strings.Index(s2, "<blockquote>")
+			contentEnd = contentStart + nestedBQ
 		}
+		
+		afterClose := strings.TrimLeft(string(htmlBody[contentStart:contentEnd]), "\n\r ")
 		
 		// Extract inline content between ] and first </p> (before any separate <p> blocks)
 		// This handles cases where content is on the same line as the header
