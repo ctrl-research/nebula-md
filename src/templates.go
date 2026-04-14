@@ -414,7 +414,7 @@ window.navTree = %[11]s;
             .on('drag', function(e) { e.subject.fx = e.x; e.subject.fy = e.y; })
             .on('end', function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
         node.on('click', function(e, d) { if (!d.stub && !d.current) window.location.href = d.href; });
-        node.append('circle').attr('r', function(d) { return d.current ? 7 : 4 }).style('fill', function(d) { return d.stub ? '#e67e22' : (d.current ? '#2980b9' : '#3498db'); }).style('stroke', 'white').style('stroke-width', 1.5);
+        node.append('circle').attr('r', function(d) { return d.current ? 7 : 4 }).style('fill', function(d) { return d.stub ? '#e67e22' : (d.current ? '#2980b9' : '#3498db'); });
         node.append('text').attr('dx', 7).attr('dy', 3).style('font-size', '9px').style('fill', 'currentColor').style('opacity', '0.8').text(function(d) { return d.title; });
         console.log('graph: sim created, node count=' + nodes.length);
         console.log('graph: link selection=' + (typeof link) + ', node selection=' + (typeof node));
@@ -702,8 +702,8 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
         #graph { width: 100vw; height: 100vh; overflow: hidden; }
         .node { cursor: pointer; }
-        .node circle { fill: var(--link); stroke: white; stroke-width: 2px; }
-        .node.stub circle { fill: #e67e22; stroke: #fff; }
+        .node circle { fill: var(--link); stroke: none; }
+        .node.stub circle { fill: #e67e22; }
         .node text { font-size: 12px; fill: currentColor; opacity: 0.85; pointer-events: none; transition: opacity 0.2s; }
         .link { stroke: var(--link); stroke-width: 1px; transition: stroke-opacity 0.2s; }
         .node.dimmed circle { opacity: 0.2; }
