@@ -412,6 +412,7 @@ window.navTree = %[11]s;
         // Render nodes/links immediately (before sim ticks)
         var link = linkG.selectAll('line').data(edges).enter().append('line').style('stroke', '#ccc').style('stroke-width', 1.5);
         var node = nodeG.selectAll('g').data(nodes).enter().append('g')
+            .attr('class', function(d) { return 'node' + (d.stub ? ' stub' : '') + (d.current ? ' current' : ''); })
             .style('cursor', function(d) { return d.stub || d.current ? 'default' : 'pointer'; });
         node.call(_d3.drag()
             .on('start', function(e) { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
