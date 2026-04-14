@@ -415,7 +415,7 @@ window.navTree = %[11]s;
             .on('end', function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
         node.on('click', function(e, d) { if (!d.stub && !d.current) window.location.href = d.href; });
         node.append('circle').attr('r', function(d) { return d.current ? 7 : 4 }).style('fill', function(d) { return d.stub ? '#e67e22' : (d.current ? '#2980b9' : '#3498db'); });
-        node.append('text').attr('dx', 0).attr('dy', function(d) { var r = d.current ? 7 : 4; return r + 4; }).attr('text-anchor', 'middle').style('font-size', '9px').style('fill', 'currentColor').style('opacity', '0.8').text(function(d) { return d.title; });
+        node.append('text').attr('dx', 0).attr('dy', function(d) { var r = d.current ? 7 : 4; return r + 10; }).attr('text-anchor', 'middle').style('font-size', '9px').style('fill', 'currentColor').style('opacity', '0.8').text(function(d) { return d.title; });
         console.log('graph: sim created, node count=' + nodes.length);
         console.log('graph: link selection=' + (typeof link) + ', node selection=' + (typeof node));
         console.log('graph: calling tick...');
@@ -805,7 +805,7 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         }
         return 8;
     });
-    node.append("text").attr("dx", 0).attr("dy", function(d) { return (nodeRadius ? (8 + (edgeCount[d.id] || 0) * 0.75) : 8) + 4; }).attr("text-anchor", "middle").text(function(d) { return d.title; });
+    node.append("text").attr("dx", 0).attr("dy", function(d) { return (nodeRadius ? (8 + (edgeCount[d.id] || 0) * 0.75) : 8) + 10; }).attr("text-anchor", "middle").text(function(d) { return d.title; });
     sim.on("tick", function() {
         link.attr("x1", function(d) { return d.source.x; }).attr("y1", function(d) { return d.source.y; })
           .attr("x2", function(d) { return d.target.x; }).attr("y2", function(d) { return d.target.y; });
