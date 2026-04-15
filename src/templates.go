@@ -442,8 +442,7 @@ window.navTree = %[11]s;
             link.style('stroke-opacity', function(l) { return (l.source.id === nid || l.target.id === nid || l.source.id === pageId || l.target.id === pageId) ? 1 : 0.15; });
         });
         node.on('mouseout', function(e, d) {
-            // Don't reset styles if this node is being dragged (its position lags during drag)
-            if (draggingNodeId === d.id) return;
+            if (draggingNodeId !== null) return;
             node.classed('hovered', false).classed('neighbor', false).classed('dimmed', false);
             node.selectAll('circle').style('fill', '#ccc').style('opacity', '1');
             link.style('stroke', '#ccc').style('stroke-opacity', 1);
@@ -837,7 +836,7 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
             });
         })
         .on("mouseout", function(e, d) {
-            if (draggingNodeId === d.id) return;
+            if (draggingNodeId !== null) return;
             node.classed("hovered", false).classed("neighbor", false).classed("dimmed", false);
             link.classed("dimmed", false);
             link.classed("connected", false);
