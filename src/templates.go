@@ -414,10 +414,19 @@ window.navTree = %[11]s;
         var node = nodeG.selectAll('g').data(nodes).enter().append('g')
             .attr('class', function(d) { return 'node' + (d.stub ? ' stub' : '') + (d.current ? ' current' : ''); })
             .style('cursor', function(d) { return d.stub || d.current ? 'default' : 'pointer'; });
+        var draggingNodeId = null;
         node.call(_d3.drag()
-            .on('start', function(e) { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
+            .on('start', function(e) { 
+                if (!e.active) sim.alphaTarget(0.3).restart(); 
+                e.subject.fx = e.subject.x; e.subject.fy = e.subject.y;
+                draggingNodeId = e.subject.id;
+            })
             .on('drag', function(e) { e.subject.fx = e.x; e.subject.fy = e.y; })
-            .on('end', function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
+            .on('end', function(e) { 
+                if (!e.active) sim.alphaTarget(0); 
+                e.subject.fx = null; e.subject.fy = null; 
+                draggingNodeId = null;
+            }));
         node.on('click', function(e, d) { if (!d.stub && !d.current) window.location.href = d.href; });
         node.on('mouseover', function(e, d) {
             var nid = d.id;
@@ -430,7 +439,9 @@ window.navTree = %[11]s;
             link.style('stroke', function(l) { return (l.source.id === nid || l.target.id === nid || l.source.id === pageId || l.target.id === pageId) ? 'var(--link)' : '#ccc'; });
             link.style('stroke-opacity', function(l) { return (l.source.id === nid || l.target.id === nid || l.source.id === pageId || l.target.id === pageId) ? 1 : 0.15; });
         });
-        node.on('mouseout', function() {
+        node.on('mouseout', function(e, d) {
+            // Don't reset styles if this node is being dragged (its position lags during drag)
+            if (draggingNodeId === d.id) return;
             node.classed('hovered', false).classed('neighbor', false).classed('dimmed', false);
             node.selectAll('circle').style('fill', '#ccc').style('opacity', '1');
             link.style('stroke', '#ccc').style('stroke-opacity', 1);
@@ -800,11 +811,12 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         }
         return visited;
     }
+    var draggingNodeId = null;
     var node = zoomG.selectAll("g").data(graph.nodes).enter().append("g").attr("class", function(d) { return "node" + (d.stub ? " stub" : ""); })
         .call(d3.drag()
-            .on("start", function(e) { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
+            .on("start", function(e) { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; draggingNodeId = e.subject.id; })
             .on("drag", function(e) { e.subject.fx = e.x; e.subject.fy = e.y; })
-            .on("end", function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }))
+            .on("end", function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; draggingNodeId = null; }))
         .on("mouseover", function(event, d) {
             var nid = d.id;
             // Find all nodes reachable from hovered node (entire connected component)
