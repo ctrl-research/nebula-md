@@ -120,7 +120,7 @@ jobs:
           cd basalt
           ./src/basalt
         env:
-          BASALT_SITE_NAME: ${{ inputs.site_name || 'Basalt' }}
+          BASALT_SITE_NAME: ${{ inputs.site_name || 'Basalt 🪨' }}
           BASALT_SITE_THEME: ${{ inputs.site_theme || 'dark' }}
           BASALT_IGNORED_DIRS: ${{ inputs.ignored_dirs || '' }}
           BASALT_INPUT: vault
