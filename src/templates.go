@@ -420,12 +420,14 @@ window.navTree = %[11]s;
                 if (!e.active) sim.alphaTarget(0.3).restart(); 
                 e.subject.fx = e.subject.x; e.subject.fy = e.subject.y;
                 draggingNodeId = e.subject.id;
+                svg.classed('dragging', true);
             })
             .on('drag', function(e) { e.subject.fx = e.x; e.subject.fy = e.y; })
             .on('end', function(e) { 
                 if (!e.active) sim.alphaTarget(0); 
                 e.subject.fx = null; e.subject.fy = null; 
                 draggingNodeId = null;
+                svg.classed('dragging', false);
             }));
         node.on('click', function(e, d) { if (!d.stub && !d.current) window.location.href = d.href; });
         node.on('mouseover', function(e, d) {
@@ -742,7 +744,12 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         .node text { font-size: 12px; fill: currentColor; opacity: 0.85; pointer-events: none; transition: opacity 0.2s; }
         .link { stroke: #ccc; stroke-width: 1px; transition: stroke-opacity 0.2s; }
         .node.dimmed circle { opacity: 0.15; }
-        .node.hovered circle, .node.neighbor circle { fill: var(--link); }
+        .node.dragging circle, svg.dragging .node circle { fill: var(--link); }
+        svg.dragging .link { stroke: var(--link); stroke-opacity: 1; }
+        svg.dragging .node.dimmed circle { opacity: 1; }
+        svg.dragging .node.dimmed circle { fill: var(--link); opacity: 1; }
+        svg.dragging .node.neighbor circle { fill: var(--link); }
+        svg.dragging .link.dimmed { stroke: var(--link); stroke-opacity: 1; }
         .node.dimmed text { opacity: 0.3; }
         .link.dimmed { stroke-opacity: 0.15; }
         .link.connected { stroke: var(--link); stroke-opacity: 1; }
@@ -814,9 +821,9 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     var draggingNodeId = null;
     var node = zoomG.selectAll("g").data(graph.nodes).enter().append("g").attr("class", function(d) { return "node" + (d.stub ? " stub" : ""); })
         .call(d3.drag()
-            .on("start", function(e) { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; draggingNodeId = e.subject.id; })
+            .on("start", function(e) { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; draggingNodeId = e.subject.id; svg.classed("dragging", true); })
             .on("drag", function(e) { e.subject.fx = e.x; e.subject.fy = e.y; })
-            .on("end", function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; draggingNodeId = null; }))
+            .on("end", function(e) { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; draggingNodeId = null; svg.classed("dragging", false); }))
         .on("mouseover", function(event, d) {
             var nid = d.id;
             // Find all nodes reachable from hovered node (entire connected component)
