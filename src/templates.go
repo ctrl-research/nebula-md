@@ -745,6 +745,8 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         .node.dimmed circle { opacity: 0.15; }
         .node.dimmed text { opacity: 0.3; }
         .link.dimmed { stroke-opacity: 0.15; }
+        .node.hovered circle { fill: var(--link); }
+        .node.neighbor circle { fill: var(--link); }
         .link.connected { stroke: var(--link); stroke-opacity: 1; }
         #legend { position: absolute; top: 20px; right: 20px; background: var(--card-bg); padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); font-size: 0.85em; border: 1px solid var(--border); }
         #legend h3 { margin: 0 0 10px; color: var(--heading); }
