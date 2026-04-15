@@ -51,6 +51,7 @@ type SiteConfig struct {
 	SiteTheme             string   // "dark" or "light"
 	IgnoredDirs           []string // directory names to skip during vault walk
 	GraphNodeSizeByEdges  bool     // size graph nodes by edge count
+	ShowLinks            bool     // show links/backlinks sidebar section
 }
 
 // readConfig reads site configuration from .env and environment variables.
@@ -82,6 +83,8 @@ func readConfig() SiteConfig {
 						cfg.SiteTheme = val
 					} else if key == "BASALT_GRAPH_NODE_SIZE_BY_EDGES" {
 						cfg.GraphNodeSizeByEdges = val == "true" || val == "1" || val == "yes"
+					} else if key == "BASALT_SHOW_LINKS" {
+						cfg.ShowLinks = val == "true" || val == "1" || val == "yes"
 					}
 				}
 			}
@@ -106,6 +109,9 @@ func readConfig() SiteConfig {
 	// Parse boolean flags
 	if v := os.Getenv("BASALT_GRAPH_NODE_SIZE_BY_EDGES"); v != "" {
 		cfg.GraphNodeSizeByEdges = v == "true" || v == "1" || v == "yes"
+	}
+	if v := os.Getenv("BASALT_SHOW_LINKS"); v != "" {
+		cfg.ShowLinks = v == "true" || v == "1" || v == "yes"
 	}
 	return cfg
 }

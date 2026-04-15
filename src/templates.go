@@ -11,7 +11,7 @@ import (
 // navTreeJSON is the hierarchical navigation tree as JSON.
 func generateHTMLTemplate(title string, htmlContent string, sourcePath string, pageGraph *PageGraph, navTreeJSON string, siteCfg SiteConfig) string {
 	pageGraphJSON, _ := json.Marshal(pageGraph)
-	backlinksHTML := buildBacklinksHTML(pageGraph)
+	backlinksHTML := buildBacklinksHTML(pageGraph, siteCfg.ShowLinks)
 	tagsHTML := buildTagsHTML(pageGraph)
 	tocHTML := buildTocHTML(pageGraph)
 	siteNameJS, _ := json.Marshal(siteCfg.SiteName)
@@ -620,7 +620,10 @@ window.navTree = %[11]s;
 }
 
 // buildBacklinksHTML renders Links and Backlinks for the sidebar
-func buildBacklinksHTML(pg *PageGraph) string {
+func buildBacklinksHTML(pg *PageGraph, showLinks bool) string {
+	if !showLinks {
+		return ""
+	}
 	if pg == nil || (len(pg.Links) == 0 && len(pg.Backlinks) == 0) {
 		return ""
 	}
