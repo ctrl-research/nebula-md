@@ -41,6 +41,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 		.sidebar-nav.open { transform: translateX(0); display: block; }
 		.sidebar-nav.closed { transform: translateX(-100%); display: none; }
 		.content-col { padding: 16px 20px; align-self: start; }
+		.page-footer { text-align: center; }
 		.sidebar-right { display: block; border-left: none; border-top: 1px solid var(--border); position: static; margin-top: 0; }
 		.sidebar-right .sidebar-section { margin-bottom: 8px; }
 	}
@@ -74,6 +75,10 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.markdown-body a { color: var(--link); text-decoration: none; font-weight: 500; }
 	.markdown-body a:hover { text-decoration: underline; }
 	.markdown-body img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+	/* Page footer */
+	.page-footer { margin-top: 24px; padding: 12px 0; border-top: 1px solid var(--border); font-size: 0.8em; color: var(--muted); text-align: center; }
+	.page-footer a { color: var(--link); text-decoration: none; }
+	.page-footer a:hover { text-decoration: underline; }
 	/* Right sidebar */
 	.sidebar-right { background: var(--sidebar-bg); border-left: 1px solid var(--border); padding: 20px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 	.sidebar-right h2 { margin: 0; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
@@ -238,6 +243,9 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
         <div class="markdown-body">
             %[6]s
         </div>
+        <footer class="page-footer">
+            Created by <a href="https://basalt.j6n.dev" target="_blank" rel="noopener">Basalt</a>
+        </footer>
     </main>
     <aside class="sidebar-right">
         <div class="graph-header">
