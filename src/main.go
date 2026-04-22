@@ -52,6 +52,7 @@ type SiteConfig struct {
 	IgnoredDirs           []string // directory names to skip during vault walk
 	GraphNodeSizeByEdges  bool     // size graph nodes by edge count
 	ShowLinks            bool     // show links/backlinks sidebar section
+	FeatureAutoFolderMOC bool     // auto-add sibling links to folder index pages
 }
 
 // readConfig reads site configuration from .env and environment variables.
@@ -85,6 +86,8 @@ func readConfig() SiteConfig {
 						cfg.GraphNodeSizeByEdges = val == "true" || val == "1" || val == "yes"
 					} else if key == "BASALT_SHOW_LINKS" {
 						cfg.ShowLinks = val == "true" || val == "1" || val == "yes"
+					} else if key == "BASALT_FEATURE_AUTO_FOLDER_MOC" {
+						cfg.FeatureAutoFolderMOC = val == "true" || val == "1" || val == "yes"
 					}
 				}
 			}
@@ -112,6 +115,9 @@ func readConfig() SiteConfig {
 	}
 	if v := os.Getenv("BASALT_SHOW_LINKS"); v != "" {
 		cfg.ShowLinks = v == "true" || v == "1" || v == "yes"
+	}
+	if v := os.Getenv("BASALT_FEATURE_AUTO_FOLDER_MOC"); v != "" {
+		cfg.FeatureAutoFolderMOC = v == "true" || v == "1" || v == "yes"
 	}
 	return cfg
 }
@@ -172,8 +178,11 @@ func run() error {
 	navTree := buildNavTree(SourceDir)
 	navTreeJSON, _ := json.Marshal(navTree)
 
-	// Build folder siblings map: for each folder index page, all other pages in that folder
-	folderSiblings := buildFolderSiblings(graph.Nodes)
+	// Build folder siblings map if feature flag is enabled
+	var folderSiblings map[string][]string
+	if siteCfg.FeatureAutoFolderMOC {
+		folderSiblings = buildFolderSiblings(graph.Nodes)
+	}
 
 	parser := NewMarkdownParser()
 
