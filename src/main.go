@@ -52,6 +52,7 @@ type SiteConfig struct {
 	IgnoredDirs           []string // directory names to skip during vault walk
 	GraphNodeSizeByEdges  bool     // size graph nodes by edge count
 	ShowLinks            bool     // show links/backlinks sidebar section
+	FeatureAutoFolderMOC bool     // auto-add sibling links to folder index pages
 }
 
 // readConfig reads site configuration from .env and environment variables.
@@ -85,6 +86,8 @@ func readConfig() SiteConfig {
 						cfg.GraphNodeSizeByEdges = val == "true" || val == "1" || val == "yes"
 					} else if key == "BASALT_SHOW_LINKS" {
 						cfg.ShowLinks = val == "true" || val == "1" || val == "yes"
+					} else if key == "BASALT_FEATURE_AUTO_FOLDER_MOC" {
+						cfg.FeatureAutoFolderMOC = val == "true" || val == "1" || val == "yes"
 					}
 				}
 			}
@@ -112,6 +115,9 @@ func readConfig() SiteConfig {
 	}
 	if v := os.Getenv("BASALT_SHOW_LINKS"); v != "" {
 		cfg.ShowLinks = v == "true" || v == "1" || v == "yes"
+	}
+	if v := os.Getenv("BASALT_FEATURE_AUTO_FOLDER_MOC"); v != "" {
+		cfg.FeatureAutoFolderMOC = v == "true" || v == "1" || v == "yes"
 	}
 	return cfg
 }
@@ -172,6 +178,21 @@ func run() error {
 	navTree := buildNavTree(SourceDir)
 	navTreeJSON, _ := json.Marshal(navTree)
 
+	// Build folder siblings map if feature flag is enabled
+	var folderSiblings map[string][]string
+	if siteCfg.FeatureAutoFolderMOC {
+		folderSiblings = buildFolderSiblings(graph.Nodes)
+		// Add sibling edges to global graph
+		for indexID, sibs := range folderSiblings {
+			for _, sib := range sibs {
+				graph.Edges = append(graph.Edges, GraphEdge{Source: indexID, Target: sib})
+			}
+		}
+		// Re-write graph.json with sibling edges included
+		graphJSON, _ = json.MarshalIndent(graph, "", "  ")
+		os.WriteFile(filepath.Join(OutputDir, "graph.json"), graphJSON, 0644)
+	}
+
 	parser := NewMarkdownParser()
 
 	// Walk the vault and generate HTML for each markdown file
@@ -205,7 +226,7 @@ func run() error {
 		}
 
 		// Build per-page graph data
-		pageGraph := buildPageGraph(pageID, linkTargets, linkHrefs, backlinksMap, existingPages, pageTitles, tags)
+		pageGraph := buildPageGraph(pageID, linkTargets, linkHrefs, backlinksMap, existingPages, pageTitles, folderSiblings, tags)
 		pageGraph.CurrentHref = pageID + ".html"
 		pageGraph.TableOfContents = extractTOC(htmlBody)
 		pageGraph.Date = date
@@ -254,10 +275,45 @@ func run() error {
 	return nil
 }
 
+// buildFolderSiblings builds a map: folder index pageID -> all sibling pageIDs in that folder (excl. index itself).
+// e.g. recipes/index -> [recipes/chicken, recipes/beef, ...]
+func buildFolderSiblings(nodes []GraphNode) map[string][]string {
+	// First pass: group pages by their folder
+	folderPages := make(map[string][]string) // folderDir -> [pageIDs]
+	for _, n := range nodes {
+		if n.Stub {
+			continue
+		}
+		dir := filepath.Dir(n.ID)
+		if dir == "." {
+			dir = ""
+		}
+		folderPages[dir] = append(folderPages[dir], n.ID)
+	}
+
+	// Second pass: for each folder with an index, siblings = all non-index pages in that folder
+	siblings := make(map[string][]string)
+	for _, pages := range folderPages {
+		var indexID string
+		var nonIndex []string
+		for _, p := range pages {
+			if toHTMLName(p) == "index" {
+				indexID = p
+			} else {
+				nonIndex = append(nonIndex, p)
+			}
+		}
+		if indexID != "" && len(nonIndex) > 0 {
+			siblings[indexID] = nonIndex
+		}
+	}
+	return siblings
+}
+
 // buildPageGraph builds the per-page graph data for a given page:
-// - Links: pages this page wiki-links to
+// - Links: pages this page wiki-links to (plus sibling folder pages for folder indexes)
 // - Backlinks: pages that link to this page
-func buildPageGraph(pageID string, linkTargets []string, linkHrefs []string, backlinksMap map[string][]string, existingPages map[string]bool, pageTitles map[string]string, tags []string) *PageGraph {
+func buildPageGraph(pageID string, linkTargets []string, linkHrefs []string, backlinksMap map[string][]string, existingPages map[string]bool, pageTitles map[string]string, folderSiblings map[string][]string, tags []string) *PageGraph {
 	pg := &PageGraph{Links: []GraphRef{}, Backlinks: []GraphRef{}, Tags: tags}
 
 	// Build Links — use linkHrefs (computed relative hrefs) not bare target paths
@@ -281,6 +337,21 @@ func buildPageGraph(pageID string, linkTargets []string, linkHrefs []string, bac
 			Href:  href,
 			Stub:  !existingPages[target],
 		})
+	}
+
+	// For folder index pages, add links to all sibling pages in the same folder
+	if sibs, ok := folderSiblings[pageID]; ok {
+		for _, sib := range sibs {
+			title := toHTMLName(sib)
+			if t, ok := pageTitles[sib]; ok && t != "" {
+				title = t
+			}
+			pg.Links = append(pg.Links, GraphRef{
+				Title: title,
+				Href:  computeRelHref(pageID, sib),
+				Stub:  false,
+			})
+		}
 	}
 
 	// Build Backlinks — compute relative hrefs from this page's directory
