@@ -182,6 +182,15 @@ func run() error {
 	var folderSiblings map[string][]string
 	if siteCfg.FeatureAutoFolderMOC {
 		folderSiblings = buildFolderSiblings(graph.Nodes)
+		// Add sibling edges to global graph
+		for indexID, sibs := range folderSiblings {
+			for _, sib := range sibs {
+				graph.Edges = append(graph.Edges, GraphEdge{Source: indexID, Target: sib})
+			}
+		}
+		// Re-write graph.json with sibling edges included
+		graphJSON, _ = json.MarshalIndent(graph, "", "  ")
+		os.WriteFile(filepath.Join(OutputDir, "graph.json"), graphJSON, 0644)
 	}
 
 	parser := NewMarkdownParser()
