@@ -17,15 +17,15 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	siteNameJS, _ := json.Marshal(siteCfg.SiteName)
 
 	css := `
-	/* Google Fonts: Plex Serif for headings, Lilex for body */
-	@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
+	/* Google Fonts: Libre Baskerville for headings and site name, Lilex for body */
+	@import url('https://fonts.googleapis.com/css2?family=Lilex:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
 
 	/* Dark mode — deep black with subtle blue undertone */
 	:root, [data-theme="dark"] { --bg: #161a22; --text: #e0e0e0; --link: #6bb3d9; --sidebar-bg: #1a1f2a; --border: #2a3040; --heading: #ffffff; --muted: #888888; --card-bg: #1e2432; --graph-node: #999; }
 	/* Light mode */
 	[data-theme="light"] { --bg: #f8f8f8; --text: #333; --link: #2980b9; --sidebar-bg: #f0f0f0; --border: #e1e4e8; --heading: #1a1a1a; --muted: #888888; --card-bg: #ffffff; --graph-node: #ccc; }
 	* { box-sizing: border-box; }
-	body { font-family: 'Lexend', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; margin: 0; background: var(--bg); color: var(--text); font-weight: 400; }
+	body { font-family: 'Lilex', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; margin: 0; background: var(--bg); color: var(--text); font-weight: 400; }
 	h1, h2, h3, h4, h5, h6 { font-family: 'Libre Baskerville', Georgia, 'Times New Roman', serif; font-weight: 700; }
 	.layout { display: grid; grid-template-columns: 1fr 2fr 1fr; width: 100%; max-width: 100vw; align-items: start; }
 	/* Mobile nav toggle */
@@ -189,7 +189,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.toc-item.level-5 { padding-left: 48px; }
 	.toc-item.level-6 { padding-left: 60px; }
 	/* Theme toggle */
-	.site-name { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin: 0 0 12px; font-size: 1.5em; font-weight: 700; color: var(--heading); padding-left: 6px; }
+	.site-name { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin: 0 0 12px; font-size: 1.5em; font-weight: 700; color: var(--heading); padding-left: 6px; font-family: 'Libre Baskerville', Georgia, 'Times New Roman', serif; }
 	.sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 	.search-bar { width: 100%; background: var(--card-bg); border: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 6px 10px; border-radius: 4px; font-size: 0.85em; text-align: left; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
 	.search-bar .icon { font-size: 2em; }
