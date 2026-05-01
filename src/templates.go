@@ -17,12 +17,16 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	siteNameJS, _ := json.Marshal(siteCfg.SiteName)
 
 	css := `
-	/* Dark mode (default) */
-	:root, [data-theme="dark"] { --bg: #1e1e1e; --text: #e0e0e0; --link: #6bb3d9; --sidebar-bg: #252525; --border: #3a3a3a; --heading: #ffffff; --muted: #888888; --card-bg: #2a2a2a; --graph-node: #999; }
+	/* Google Fonts: Plex Serif for headings, Lilex for body */
+	@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
+
+	/* Dark mode — deep black with subtle blue undertone */
+	:root, [data-theme="dark"] { --bg: #161a22; --text: #e0e0e0; --link: #6bb3d9; --sidebar-bg: #1a1f2a; --border: #2a3040; --heading: #ffffff; --muted: #888888; --card-bg: #1e2432; --graph-node: #999; }
 	/* Light mode */
 	[data-theme="light"] { --bg: #f8f8f8; --text: #333; --link: #2980b9; --sidebar-bg: #f0f0f0; --border: #e1e4e8; --heading: #1a1a1a; --muted: #888888; --card-bg: #ffffff; --graph-node: #ccc; }
 	* { box-sizing: border-box; }
-	body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; margin: 0; background: var(--bg); color: var(--text); }
+	body { font-family: 'Lexend', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; margin: 0; background: var(--bg); color: var(--text); font-weight: 400; }
+	h1, h2, h3, h4, h5, h6 { font-family: 'Libre Baskerville', Georgia, 'Times New Roman', serif; font-weight: 700; }
 	.layout { display: grid; grid-template-columns: 1fr 2fr 1fr; width: 100%; max-width: 100vw; align-items: start; }
 	/* Mobile nav toggle */
 	.mobile-nav-toggle { display: none; }
