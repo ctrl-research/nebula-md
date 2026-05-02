@@ -331,6 +331,32 @@ func buildGraph(vaultDir string) (*Graph, map[string][]string, map[string]string
 		return nil, nil, nil, err
 	}
 
+	// Auto-create edges: index.md → sibling files in the same folder.
+	// e.g.  projects/index.md  →  projects/project-a.md, projects/project-b.md
+	for pageID := range allPages {
+		if !strings.HasSuffix(pageID, "/index") {
+			continue
+		}
+		dir := filepath.Dir(pageID)
+		// Walk once to collect siblings; skip the index itself.
+		filepath.Walk(vaultDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || !strings.HasSuffix(path, ".md") || isIgnored(path) {
+				return nil
+			}
+			rel, _ := filepath.Rel(vaultDir, path)
+			siblingID := strings.TrimSuffix(rel, ".md")
+			if siblingID == pageID {
+				return nil // skip self
+			}
+			siblingDir := filepath.Dir(siblingID)
+			if siblingDir != dir {
+				return nil // not a sibling
+			}
+			g.Edges = append(g.Edges, GraphEdge{Source: pageID, Target: siblingID})
+			return nil
+		})
+	}
+
 	added := make(map[string]bool)
 	for id := range allPages {
 		title := pageTitles[id]
