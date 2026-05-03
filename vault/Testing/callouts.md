@@ -33,3 +33,10 @@ title: Callouts
 > [!custom]
 > > [!custom]
 > > > [!custom]
+
+## Multi-line test
+
+> [!info]
+> Serving size: 5 meals
+> Prep time: 10min
+> Cooking time: 20min

@@ -281,16 +281,17 @@ func processCallouts(htmlBody []byte) []byte {
 			}
 			pText := strings.TrimRight(remaining[:pEnd], "\n\r ")
 			if pText != "" {
-				// Handle <br> tags within the paragraph - split into separate <p> tags
+				// Handle newlines within the paragraph - split into separate <p> tags
 				// This supports multi-line content in a single <p> tag from goldmark
-				parts := strings.Split(pText, "<br>")
-				for _, part := range parts {
-					part = strings.TrimRight(part, "\n\r ")
-					if part != "" {
+				// Goldmark without HardWraps outputs literal \n characters
+				lines := strings.Split(pText, "\n")
+				for _, line := range lines {
+					line = strings.TrimRight(line, "\n\r ")
+					if line != "" {
 						if fullContent != "" {
 							fullContent += "\n"
 						}
-						fullContent += "<p>" + part + "</p>"
+						fullContent += "<p>" + line + "</p>"
 					}
 				}
 			}
@@ -301,16 +302,17 @@ func processCallouts(htmlBody []byte) []byte {
 		// If we only have inline content, use it
 		// If we only have paragraph content, use it
 		if inlineContent != "" {
-			// Split inlineContent by <br> tags to support multi-line content on same line
-			parts := strings.Split(inlineContent, "<br>")
+			// Split inlineContent by newlines to support multi-line content
+			// Goldmark without HardWraps outputs literal \n characters inside paragraphs
+			lines := strings.Split(inlineContent, "\n")
 			inlineHTML := ""
-			for _, part := range parts {
-				part = strings.TrimSpace(part)
-				if part != "" {
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line != "" {
 					if inlineHTML != "" {
 						inlineHTML += "\n"
 					}
-					inlineHTML += "<p>" + part + "</p>"
+					inlineHTML += "<p>" + line + "</p>"
 				}
 			}
 			if fullContent != "" {
