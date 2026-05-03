@@ -281,10 +281,18 @@ func processCallouts(htmlBody []byte) []byte {
 			}
 			pText := strings.TrimRight(remaining[:pEnd], "\n\r ")
 			if pText != "" {
-				if fullContent != "" {
-					fullContent += "\n"
+				// Handle <br> tags within the paragraph - convert them to paragraph breaks
+				// This supports multi-line content in a single <p> tag
+				parts := strings.Split(pText, "<br>")
+				for i, part := range parts {
+					part = strings.TrimRight(part, "\n\r ")
+					if part != "" {
+						if fullContent != "" {
+							fullContent += "\n"
+						}
+						fullContent += "<p>" + part + "</p>"
+					}
 				}
-				fullContent += "<p>" + pText + "</p>"
 			}
 			remaining = remaining[pEnd+4:]
 		}
