@@ -87,7 +87,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.sidebar-right { background: var(--sidebar-bg); border-left: 1px solid var(--border); padding: 20px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 	.sidebar-right h2 { margin: 0; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
 	.graph-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-	.graph-header button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.9em; padding: 0; line-height: 1; }
+	.graph-header button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.35em; padding: 0; line-height: 1; }
 	.graph-header button:hover { color: var(--text); }
 	.full-graph-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 	.full-graph-modal { background: var(--sidebar-bg); border: 1px solid var(--border); border-radius: 8px; width: 90vw; height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
