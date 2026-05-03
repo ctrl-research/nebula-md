@@ -281,10 +281,18 @@ func processCallouts(htmlBody []byte) []byte {
 			}
 			pText := strings.TrimRight(remaining[:pEnd], "\n\r ")
 			if pText != "" {
-				if fullContent != "" {
-					fullContent += "\n"
+				// Handle <br> tags within the paragraph - split into separate <p> tags
+				// This supports multi-line content in a single <p> tag from goldmark
+				parts := strings.Split(pText, "<br>")
+				for _, part := range parts {
+					part = strings.TrimRight(part, "\n\r ")
+					if part != "" {
+						if fullContent != "" {
+							fullContent += "\n"
+						}
+						fullContent += "<p>" + part + "</p>"
+					}
 				}
-				fullContent += "<p>" + pText + "</p>"
 			}
 			remaining = remaining[pEnd+4:]
 		}
@@ -292,12 +300,27 @@ func processCallouts(htmlBody []byte) []byte {
 		// If we have both inline content and separate paragraph content, combine them
 		// If we only have inline content, use it
 		// If we only have paragraph content, use it
-		if inlineContent != "" && fullContent != "" {
-			// Both exist - combine (inline first, then paragraphs)
-			fullContent = "<p>" + inlineContent + "</p>\n" + fullContent
-		} else if inlineContent != "" {
-			fullContent = "<p>" + inlineContent + "</p>"
-		} else if fullContent == "" {
+		if inlineContent != "" {
+			// Split inlineContent by <br> tags to support multi-line content on same line
+			parts := strings.Split(inlineContent, "<br>")
+			inlineHTML := ""
+			for _, part := range parts {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					if inlineHTML != "" {
+						inlineHTML += "\n"
+					}
+					inlineHTML += "<p>" + part + "</p>"
+				}
+			}
+			if fullContent != "" {
+				// Both exist - combine (inline first, then paragraphs)
+				fullContent = inlineHTML + "\n" + fullContent
+			} else {
+				fullContent = inlineHTML
+			}
+		}
+		if fullContent == "" {
 			// No content at all - skip
 			continue
 		}
