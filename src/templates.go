@@ -48,6 +48,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 		.page-footer { text-align: center; }
 		.sidebar-right { display: block; border-left: none; border-top: 1px solid var(--border); position: static; margin-top: 0; }
 		.sidebar-right .sidebar-section { margin-bottom: 8px; }
+		.graph-header button { font-size: 1.8em; }
 	}
 	/* Left sidebar — nav */
 	.sidebar-nav { background: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 20px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
@@ -220,7 +221,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23161a22' stroke='%236bb3d9' stroke-width='2'/><circle cx='10' cy='12' r='2.5' fill='%236bb3d9'/><circle cx='22' cy='12' r='2.5' fill='%236bb3d9'/><circle cx='16' cy='22' r='2.5' fill='%236bb3d9'/><line x1='10' y1='12' x2='16' y2='22' stroke='%236bb3d9' stroke-width='1.5'/><line x1='22' y1='12' x2='16' y2='22' stroke='%236bb3d9' stroke-width='1.5'/><line x1='10' y1='12' x2='22' y2='12' stroke='%236bb3d9' stroke-width='1.5'/></svg>" type="image/svg+xml">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%%23161a22' stroke='%%236bb3d9' stroke-width='2'/><circle cx='10' cy='12' r='2.5' fill='%%236bb3d9'/><circle cx='22' cy='12' r='2.5' fill='%%236bb3d9'/><circle cx='16' cy='22' r='2.5' fill='%%236bb3d9'/><line x1='10' y1='12' x2='16' y2='22' stroke='%%236bb3d9' stroke-width='1.5'/><line x1='22' y1='12' x2='16' y2='22' stroke='%%236bb3d9' stroke-width='1.5'/><line x1='10' y1='12' x2='22' y2='12' stroke='%%236bb3d9' stroke-width='1.5'/></svg>" type="image/svg+xml">
     <title>%[1]s - %[12]s</title>
     <style>%[2]s</style>
 </head>
@@ -744,7 +745,7 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23161a22' stroke='%236bb3d9' stroke-width='2'/><circle cx='10' cy='12' r='2.5' fill='%236bb3d9'/><circle cx='22' cy='12' r='2.5' fill='%236bb3d9'/><circle cx='16' cy='22' r='2.5' fill='%236bb3d9'/><line x1='10' y1='12' x2='16' y2='22' stroke='%236bb3d9' stroke-width='1.5'/><line x1='22' y1='12' x2='16' y2='22' stroke='%236bb3d9' stroke-width='1.5'/><line x1='10' y1='12' x2='22' y2='12' stroke='%236bb3d9' stroke-width='1.5'/></svg>" type="image/svg+xml">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%%23161a22' stroke='%%236bb3d9' stroke-width='2'/><circle cx='10' cy='12' r='2.5' fill='%%236bb3d9'/><circle cx='22' cy='12' r='2.5' fill='%%236bb3d9'/><circle cx='16' cy='22' r='2.5' fill='%%236bb3d9'/><line x1='10' y1='12' x2='16' y2='22' stroke='%%236bb3d9' stroke-width='1.5'/><line x1='22' y1='12' x2='16' y2='22' stroke='%%236bb3d9' stroke-width='1.5'/><line x1='10' y1='12' x2='22' y2='12' stroke='%%236bb3d9' stroke-width='1.5'/></svg>" type="image/svg+xml">
     <title>Graph View — %s</title>
     <style>
         :root, [data-theme="dark"] { --bg: #1e1e1e; --text: #e0e0e0; --border: #3a3a3a; --heading: #ffffff; --card-bg: #2a2a2a; --link: #6bb3d9; --graph-node: #999; }
