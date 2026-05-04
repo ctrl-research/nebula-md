@@ -376,8 +376,10 @@ func processImageCaptions(htmlBody []byte) []byte {
 		// Reconstruct the img tag, preserving all attributes
 		beforeAlt := string(parts[1])
 		afterAlt := string(parts[3])
-		imgTag := fmt.Sprintf("<img%salt="%s"%s>", beforeAlt, alt, afterAlt)
-		return []byte(fmt.Sprintf(`<figure class="image-caption">%s<figcaption>%s</figcaption></figure>`, imgTag, alt))
+		imgTag := "<img" + beforeAlt + `alt="` + alt + `"` + afterAlt + ">"
+		// Escape % in alt text before using in format string
+		altEscaped := strings.ReplaceAll(alt, "%", "%%")
+		return []byte(fmt.Sprintf(`<figure class="image-caption">%s<figcaption>%s</figcaption></figure>`, imgTag, altEscaped))
 	})
 }
 
