@@ -48,6 +48,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 		.page-footer { text-align: center; }
 		.sidebar-right { display: block; border-left: none; border-top: 1px solid var(--border); position: static; margin-top: 0; }
 		.sidebar-right .sidebar-section { margin-bottom: 8px; }
+		.graph-header button { font-size: 1.8em; }
 	}
 	/* Left sidebar — nav */
 	.sidebar-nav { background: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 20px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
