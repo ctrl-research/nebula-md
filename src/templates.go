@@ -80,6 +80,14 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.markdown-body a { color: var(--link); text-decoration: none; font-weight: 500; }
 	.markdown-body a:hover { text-decoration: underline; }
 	.markdown-body img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+	/* Markdown tables */
+	.markdown-body table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 0.9em; }
+	.markdown-body table th { background: var(--sidebar-bg); color: var(--heading); font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid var(--border); }
+	.markdown-body table td { padding: 8px 12px; border: 1px solid var(--border); }
+	.markdown-body table tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+	[data-theme="light"] .markdown-body table tr:nth-child(even) { background: rgba(0,0,0,0.03); }
+	.markdown-body table tr:hover { background: rgba(107,179,217,0.08); }
+	[data-theme="light"] .markdown-body table tr:hover { background: rgba(41,128,185,0.08); }
 	/* Page footer */
 	.page-footer { margin-top: 24px; padding: 12px 0; border-top: 1px solid var(--border); font-size: 0.8em; color: var(--muted); text-align: center; }
 	.page-footer a { color: var(--link); text-decoration: none; }
