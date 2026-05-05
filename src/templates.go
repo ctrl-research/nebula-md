@@ -88,6 +88,9 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	[data-theme="light"] .markdown-body table tr:nth-child(even) { background: rgba(0,0,0,0.03); }
 	.markdown-body table tr:hover { background: rgba(107,179,217,0.08); }
 	[data-theme="light"] .markdown-body table tr:hover { background: rgba(41,128,185,0.08); }
+	.markdown-body figure.image-caption { margin: 16px 0; text-align: center; }
+	.markdown-body figure.image-caption img { margin: 0 auto 8px; }
+	.markdown-body figure.image-caption figcaption { font-style: italic; color: var(--muted); font-size: 0.9em; margin-top: 4px; }
 	/* Page footer */
 	.page-footer { margin-top: 24px; padding: 12px 0; border-top: 1px solid var(--border); font-size: 0.8em; color: var(--muted); text-align: center; }
 	.page-footer a { color: var(--link); text-decoration: none; }
