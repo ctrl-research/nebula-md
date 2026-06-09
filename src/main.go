@@ -45,20 +45,29 @@ func isIgnored(path string) bool {
 	return false
 }
 
+// GraphMode controls the graph renderer style.
+type GraphMode string
+
+const (
+	GraphMode2D     GraphMode = "2d"
+	GraphModeNebula GraphMode = "nebula"
+)
+
 // SiteConfig holds site-level configuration from .env or environment variables.
 type SiteConfig struct {
-	SiteName              string   // displayed in header
-	SiteTheme             string   // "dark" or "light"
-	IgnoredDirs           []string // directory names to skip during vault walk
-	GraphNodeSizeByEdges  bool     // size graph nodes by edge count
-	ShowLinks            bool     // show links/backlinks sidebar section
-	FeatureAutoFolderMOC bool     // auto-add sibling links to folder index pages
+	SiteName              string    // displayed in header
+	SiteTheme             string    // "dark" or "light"
+	IgnoredDirs           []string  // directory names to skip during vault walk
+	GraphNodeSizeByEdges  bool      // size graph nodes by edge count
+	ShowLinks            bool      // show links/backlinks sidebar section
+	FeatureAutoFolderMOC bool      // auto-add sibling links to folder index pages
+	GraphMode             GraphMode // "2d" (default) or "nebula" (3D galaxy)
 }
 
 // readConfig reads site configuration from .env and environment variables.
 // Environment variables (BASALT_SITE_NAME, BASALT_SITE_THEME) override .env file values.
 func readConfig() SiteConfig {
-	cfg := SiteConfig{SiteName: "Basalt", SiteTheme: "dark", GraphNodeSizeByEdges: true}
+	cfg := SiteConfig{SiteName: "Basalt", SiteTheme: "dark", GraphNodeSizeByEdges: true, GraphMode: GraphMode2D}
 	for _, envPath := range []string{".env", "../.env", "../../.env"} {
 		if _, err := os.Stat(envPath); err == nil {
 			if data, err := os.ReadFile(envPath); err == nil {
@@ -82,13 +91,15 @@ func readConfig() SiteConfig {
 						cfg.SiteName = val
 					} else if key == "BASALT_SITE_THEME" && (val == "light" || val == "dark") {
 						cfg.SiteTheme = val
-					} else if key == "BASALT_GRAPH_NODE_SIZE_BY_EDGES" {
-						cfg.GraphNodeSizeByEdges = val == "true" || val == "1" || val == "yes"
-					} else if key == "BASALT_SHOW_LINKS" {
-						cfg.ShowLinks = val == "true" || val == "1" || val == "yes"
-					} else if key == "BASALT_FEATURE_AUTO_FOLDER_MOC" {
-						cfg.FeatureAutoFolderMOC = val == "true" || val == "1" || val == "yes"
-					}
+} else if key == "BASALT_GRAPH_NODE_SIZE_BY_EDGES" {
+					cfg.GraphNodeSizeByEdges = val == "true" || val == "1" || val == "yes"
+				} else if key == "BASALT_SHOW_LINKS" {
+					cfg.ShowLinks = val == "true" || val == "1" || val == "yes"
+				} else if key == "BASALT_FEATURE_AUTO_FOLDER_MOC" {
+					cfg.FeatureAutoFolderMOC = val == "true" || val == "1" || val == "yes"
+				} else if key == "BASALT_GRAPH_MODE" && (val == "2d" || val == "nebula") {
+					cfg.GraphMode = GraphMode(val)
+				}
 				}
 			}
 			break
@@ -118,6 +129,11 @@ func readConfig() SiteConfig {
 	}
 	if v := os.Getenv("BASALT_FEATURE_AUTO_FOLDER_MOC"); v != "" {
 		cfg.FeatureAutoFolderMOC = v == "true" || v == "1" || v == "yes"
+	}
+	if v := os.Getenv("BASALT_GRAPH_MODE"); v == "nebula" {
+		cfg.GraphMode = GraphModeNebula
+	} else {
+		cfg.GraphMode = GraphMode2D
 	}
 	return cfg
 }
@@ -270,7 +286,7 @@ func run() error {
 	}
 	fmt.Printf("Search index: %d pages\n", len(searchIndex))
 
-	writeGraphViewer(graphDir, graphJSON, siteCfg.SiteTheme, siteCfg.SiteName, siteCfg.GraphNodeSizeByEdges)
+	writeGraphViewer(graphDir, graphJSON, siteCfg.SiteTheme, siteCfg.SiteName, siteCfg.GraphNodeSizeByEdges, siteCfg.GraphMode)
 	fmt.Println("Build complete.")
 	return nil
 }
