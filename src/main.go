@@ -132,9 +132,10 @@ func readConfig() SiteConfig {
 	}
 	if v := os.Getenv("BASALT_GRAPH_MODE"); v == "nebula" {
 		cfg.GraphMode = GraphModeNebula
-	} else {
+	} else if v == "2d" {
 		cfg.GraphMode = GraphMode2D
 	}
+	// Leave GraphMode unchanged if env var is not set (preserve .env value)
 	return cfg
 }
 func main() {
