@@ -91,15 +91,15 @@ func readConfig() SiteConfig {
 						cfg.SiteName = val
 					} else if key == "BASALT_SITE_THEME" && (val == "light" || val == "dark") {
 						cfg.SiteTheme = val
-} else if key == "BASALT_GRAPH_NODE_SIZE_BY_EDGES" {
-					cfg.GraphNodeSizeByEdges = val == "true" || val == "1" || val == "yes"
-				} else if key == "BASALT_SHOW_LINKS" {
-					cfg.ShowLinks = val == "true" || val == "1" || val == "yes"
-				} else if key == "BASALT_FEATURE_AUTO_FOLDER_MOC" {
-					cfg.FeatureAutoFolderMOC = val == "true" || val == "1" || val == "yes"
-				} else if key == "BASALT_GRAPH_MODE" && (val == "2d" || val == "nebula") {
-					cfg.GraphMode = GraphMode(val)
-				}
+					} else if key == "BASALT_GRAPH_NODE_SIZE_BY_EDGES" {
+						cfg.GraphNodeSizeByEdges = val == "true" || val == "1" || val == "yes"
+					} else if key == "BASALT_SHOW_LINKS" {
+						cfg.ShowLinks = val == "true" || val == "1" || val == "yes"
+					} else if key == "BASALT_FEATURE_AUTO_FOLDER_MOC" {
+						cfg.FeatureAutoFolderMOC = val == "true" || val == "1" || val == "yes"
+					} else if key == "BASALT_GRAPH_MODE" && (val == "2d" || val == "nebula") {
+						cfg.GraphMode = GraphMode(val)
+					}
 				}
 			}
 			break
