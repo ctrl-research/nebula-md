@@ -908,6 +908,10 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
 	// The nebula viewer ships its own three.js — no CDN dependency at runtime.
 	// We bundle it inline via a CDN fetch during build (downloadThreeJS) or inline it.
 	// For simplicity we load OrbitControls from a CDN too.
+	if graphJSON == nil {
+		fmt.Printf("Error: graphJSON is nil — buildGraph likely failed. Skipping nebula.html\n")
+		return
+	}
 	nebulaHTML := `<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
