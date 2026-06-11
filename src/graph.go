@@ -20,10 +20,11 @@ type Graph struct {
 
 // GraphNode is a page in the graph
 type GraphNode struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Path  string `json:"path"`
-	Stub  bool   `json:"stub"`
+	ID    string   `json:"id"`
+	Title string   `json:"title"`
+	Path  string   `json:"path"`
+	Stub  bool     `json:"stub"`
+	Tags  []string `json:"tags,omitempty"`
 }
 
 // GraphEdge represents a link from one page to another
@@ -288,6 +289,7 @@ func buildGraph(vaultDir string) (*Graph, map[string][]string, map[string]string
 	g := &Graph{Nodes: []GraphNode{}, Edges: []GraphEdge{}}
 	allPages := make(map[string]bool)
 	pageTitles := make(map[string]string)
+	pageTags := make(map[string][]string)
 
 	err := filepath.Walk(vaultDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || !strings.HasSuffix(path, ".md") || isIgnored(path) {
@@ -298,6 +300,7 @@ func buildGraph(vaultDir string) (*Graph, map[string][]string, map[string]string
 		allPages[pageID] = true
 		if data, err := os.ReadFile(path); err == nil {
 			pageTitles[pageID] = extractTitle(data)
+			pageTags[pageID] = extractTags(data)
 		}
 		return nil
 	})
@@ -371,7 +374,7 @@ func buildGraph(vaultDir string) (*Graph, map[string][]string, map[string]string
 			}
 		}
 		g.Nodes = append(g.Nodes, GraphNode{
-			ID: id, Title: title, Path: id + ".html", Stub: false,
+			ID: id, Title: title, Path: id + ".html", Stub: false, Tags: pageTags[id],
 		})
 		added[id] = true
 	}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -748,16 +747,13 @@ func generateStubHTML(pageID string) string {
 </html>`, pageID, pageID, pageID)
 }
 
-// writeGraphViewer writes the full vault D3 graph viewer.
-// graphMode controls which renderer to use: "2d" (default) or "nebula" (3D galaxy).
+// writeGraphViewer writes the full vault graph viewers.
+// Both renderers are always generated so the nebula's 2D button can link to the
+// classic D3 view; graphMode only controls which one the site nav opens.
 func writeGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool, graphMode GraphMode) {
 	downloadD3(graphDir)
-	switch graphMode {
-	case GraphModeNebula:
-		writeFullGraphViewerNebula(graphDir, graphJSON, siteTheme, siteName, nodeSizeByEdges)
-	default:
-		writeFullGraphViewer(graphDir, graphJSON, siteTheme, siteName, nodeSizeByEdges)
-	}
+	writeFullGraphViewer(graphDir, graphJSON, siteTheme, siteName, nodeSizeByEdges)
+	writeFullGraphViewerNebula(graphDir, graphJSON, siteTheme, siteName, nodeSizeByEdges)
 }
 
 func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool) {
@@ -790,6 +786,13 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         #legend span { display: inline-block; width: 12px; height: 12px; border-radius: 50%%; margin-right: 6px; vertical-align: middle; }
         .legend-page { background: var(--link); }
         .legend-stub { background: #e67e22; }
+        #mode-toggle { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 4px; }
+        #mode-toggle a, #mode-toggle span.current {
+            background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px;
+            padding: 6px 12px; font-size: 0.8em; text-decoration: none; color: var(--text);
+        }
+        #mode-toggle span.current { background: var(--link); color: var(--bg); border-color: var(--link); }
+        #mode-toggle a:hover { border-color: var(--link); }
     </style>
 </head>
 <body>
@@ -797,6 +800,10 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         <h3>Legend</h3>
         <div><span class="legend-page"></span>Page</div>
         <div><span class="legend-stub"></span>Stub (dead link)</div>
+    </div>
+    <div id="mode-toggle">
+        <a href="nebula.html">3D</a>
+        <span class="current">2D</span>
     </div>
     <div id="graph"></div>
     <script src="d3.min.js"></script>
@@ -1069,7 +1076,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         <div id="search-container">
             <input id="search-input" type="text" placeholder="Search nodes..." autocomplete="off" />
         </div>
-        <div id="node-count">Nodes: <strong id="node-count-num">0</strong></div>
+        <div id="node-count">Nodes: <strong id="node-count-num">0</strong> · Edges: <strong id="edge-count-num">0</strong></div>
         <div id="legend">
             <h3>Legend</h3>
             <div class="legend-row legend-page"><span class="legend-dot"></span>Page</div>
@@ -1083,6 +1090,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         </div>
         <div id="controls-hint">Drag to rotate · Scroll to zoom · Click to navigate</div>
         <div id="mode-toggle">
+            <button class="active" id="btn-spin" onclick="toggleSpin()">Spin: On</button>
             <button class="active" id="btn-3d" onclick="setCameraMode('3d')">3D</button>
             <button id="btn-2d" onclick="setCameraMode('2d')">2D</button>
         </div>
@@ -1103,7 +1111,8 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
     (function() {
         'use strict';
         var graph = {{GRAPH_JSON}};
-        var nodeSizeByEdges = {{NODE_SIZE_BY_EDGES}};
+        // Unlike the 2D graph, nodes are uniform size in 3D — edge-based sizing is omitted here.
+        var NODE_SIZE = 1.8;
 
         // ---- Helpers ----
         function hashToHue(str) {
@@ -1159,16 +1168,19 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         controls.autoRotate = true;
         controls.autoRotateSpeed = 0.3;
 
-        // ---- Camera mode (3D vs 2D) ----
-        var cameraMode = '3d';
+        // ---- Idle spin toggle ----
+        var spinEnabled = true;
+        window.toggleSpin = function() {
+            spinEnabled = !spinEnabled;
+            controls.autoRotate = spinEnabled;
+            var btn = document.getElementById('btn-spin');
+            btn.classList.toggle('active', spinEnabled);
+            btn.textContent = spinEnabled ? 'Spin: On' : 'Spin: Off';
+        };
+
+        // ---- View mode (3D nebula vs classic 2D graph) ----
         window.setCameraMode = function(mode) {
-            cameraMode = mode;
-            document.getElementById('btn-3d').classList.toggle('active', mode === '3d');
-            document.getElementById('btn-2d').classList.toggle('active', mode === '2d');
-            if (mode === '2d') {
-                camera.position.set(0, 0, 120);
-                controls.target.set(0, 0, 0);
-            }
+            if (mode === '2d') window.location.href = 'index.html';
         };
 
         // ---- Starfield background ----
@@ -1185,19 +1197,17 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         // ---- Node meshes ----
         var nodeMap = {}; // id -> { mesh, glow, data }
         var nodeMeshes = [];
-        var maxEdges = 1;
-        graph.nodes.forEach(function(n) { if ((edgeCount[n.id] || 0) > maxEdges) maxEdges = edgeCount[n.id] || 0; });
 
         var nodeGeo = new THREE.SphereGeometry(1, 16, 16);
         var glowGeo = new THREE.SphereGeometry(1, 16, 16);
 
         graph.nodes.forEach(function(n) {
             var hue = hashToHue(n.id);
-            var size = nodeSizeByEdges ? 1.2 + ((edgeCount[n.id] || 0) / maxEdges) * 2.5 : 1.8;
+            var size = NODE_SIZE;
             var baseColor = new THREE.Color().setHSL(hue / 360, 0.6, 0.85);
 
-            // Core star mesh
-            var mat = new THREE.MeshBasicMaterial({ color: baseColor });
+            // Core star mesh (transparent so search/hover dimming can fade it)
+            var mat = new THREE.MeshBasicMaterial({ color: baseColor, transparent: true, opacity: 1.0 });
             var mesh = new THREE.Mesh(nodeGeo, mat);
             mesh.scale.setScalar(size);
 
@@ -1209,7 +1219,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 side: THREE.BackSide
             });
             var glow = new THREE.Mesh(glowGeo, glowMat);
-            glow.scale.setScalar(size * 2.5);
+            glow.scale.setScalar(size * 1.6);
             mesh.add(glow);
 
             // Even larger dim glow for halo
@@ -1220,8 +1230,13 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 side: THREE.BackSide
             });
             var halo = new THREE.Mesh(glowGeo, haloMat);
-            halo.scale.setScalar(size * 5);
+            halo.scale.setScalar(size * 2.8);
             mesh.add(halo);
+
+            // Glow/halo are purely visual — exclude them from raycasting so hover
+            // and click only respond to the core star, not its larger aura shells.
+            glow.raycast = function() {};
+            halo.raycast = function() {};
 
             // Stub nodes: dashed ring instead of filled star
             if (n.stub) {
@@ -1240,7 +1255,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 r * Math.sin(phi) * Math.sin(theta),
                 r * Math.cos(phi)
             );
-            mesh.userData = { id: n.id, title: n.title, stub: !!n.stub, path: n.path };
+            mesh.userData = { id: n.id, title: n.title, stub: !!n.stub, path: n.path, tags: n.tags || [] };
             scene.add(mesh);
             nodeMeshes.push(mesh);
             nodeMap[n.id] = mesh;
@@ -1266,6 +1281,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             scene.add(line);
             edgeObjects.push({ line, sourceId: sid, targetId: tid, mat });
         });
+        document.getElementById('edge-count-num').textContent = edgeObjects.length;
 
         // ---- Raycasting for hover/click ----
         var raycaster = new THREE.Raycaster();
@@ -1289,6 +1305,12 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 stub.textContent = 'stub';
                 tagsEl.appendChild(stub);
             }
+            (node.userData.tags || []).forEach(function(t) {
+                var tag = document.createElement('span');
+                tag.className = 'tt-tag';
+                tag.textContent = t;
+                tagsEl.appendChild(tag);
+            });
             tooltipEl.style.display = 'block';
             var tx = Math.min(x + 16, window.innerWidth - 240);
             var ty = Math.min(y + 16, window.innerHeight - 80);
@@ -1308,13 +1330,14 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             nodeMeshes.forEach(function(m) {
                 var id = m.userData.id;
                 if (id === keepId) {
-                    m.scale.setScalar(m.userData.stub ? 1.2 : 2.2);
+                    m.scale.setScalar(2.2);
+                    m.material.opacity = 1.0;
                 } else if (connected.has(id)) {
-                    m.scale.setScalar(m.userData.stub ? 0.9 : 1.5);
+                    m.scale.setScalar(1.5);
+                    m.material.opacity = m.userData.stub ? 0.7 : 1.0;
                 } else {
-                    m.scale.setScalar(m.userData.stub ? 0.5 : 0.8);
-                    m.material.opacity = m.material.opacity !== undefined ? m.material.opacity : 1;
-                    if (m.material.transparent) m.material.opacity = 0.15;
+                    m.scale.setScalar(0.8);
+                    m.material.opacity = 0.15;
                 }
             });
             edgeObjects.forEach(function(eo) {
@@ -1327,55 +1350,73 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             });
         }
 
-        function resetHighlights() {
+        // Highlight a set of node ids (search results); dim everything else.
+        function highlightSet(ids) {
             nodeMeshes.forEach(function(m) {
-                var size = nodeSizeByEdges ? 1.2 + ((edgeCount[m.userData.id] || 0) / maxEdges) * 2.5 : 1.8;
-                m.scale.setScalar(m.userData.stub ? 1.0 : size);
-                if (m.material.transparent && m.material.opacity < 1) {
-                    m.material.opacity = m.userData.stub ? 0.7 : 1.0;
+                if (ids.has(m.userData.id)) {
+                    m.scale.setScalar(2.2);
+                    m.material.opacity = m.userData.stub ? 0.9 : 1.0;
+                } else {
+                    m.scale.setScalar(0.8);
+                    m.material.opacity = 0.15;
                 }
             });
+            edgeObjects.forEach(function(eo) {
+                eo.mat.opacity = (ids.has(eo.sourceId) || ids.has(eo.targetId)) ? 0.4 : 0.04;
+            });
+        }
+
+        function resetHighlights() {
+            nodeMeshes.forEach(function(m) {
+                m.scale.setScalar(NODE_SIZE);
+                m.material.opacity = m.userData.stub ? 0.7 : 1.0;
+            });
             edgeObjects.forEach(function(eo) { eo.mat.opacity = 0.18; });
+        }
+
+        // Active search matches persist as the baseline highlight when not hovering.
+        var searchMatches = null;
+        function restoreBaseline() {
+            if (searchMatches) highlightSet(searchMatches);
+            else resetHighlights();
         }
 
         window.addEventListener('mousemove', function(e) {
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
             raycaster.setFromCamera(mouse, camera);
-            var hits = raycaster.intersectObjects(nodeMeshes);
+            // Non-recursive: only test core star meshes, never their glow/halo children.
+            var hits = raycaster.intersectObjects(nodeMeshes, false);
             if (hits.length > 0) {
                 var hit = hits[0].object;
                 if (hoveredNode !== hit) {
-                    resetHighlights();
                     hoveredNode = hit;
                     dimAllExcept(hit.userData.id);
-                    updateTooltip(hit, e.clientX, e.clientY);
-                } else {
-                    updateTooltip(hit, e.clientX, e.clientY);
                 }
+                updateTooltip(hit, e.clientX, e.clientY);
                 controls.autoRotate = false;
             } else {
                 if (hoveredNode !== null) {
-                    resetHighlights();
+                    restoreBaseline();
                     clearTooltip();
-                    controls.autoRotate = true;
+                    controls.autoRotate = spinEnabled;
                 }
             }
         });
 
-        window.addEventListener('click', function(e) {
-            if (!hoveredNode) return;
-            var d = hoveredNode.userData;
-            if (d.stub) return;
-            window.location.href = '../' + d.path;
+        // Track pointer-down so an orbit drag that ends over a node doesn't navigate.
+        var pointerDownPos = null;
+        window.addEventListener('pointerdown', function(e) {
+            pointerDownPos = { x: e.clientX, y: e.clientY };
         });
 
-        // ---- Idle auto-rotate ----
-        var idleTimer = null;
-        window.addEventListener('mousemove', function() {
-            controls.autoRotate = false;
-            clearTimeout(idleTimer);
-            idleTimer = setTimeout(function() { controls.autoRotate = true; }, 8000);
+        window.addEventListener('click', function(e) {
+            if (e.target !== renderer.domElement) return;
+            if (pointerDownPos && (Math.abs(e.clientX - pointerDownPos.x) > 5 || Math.abs(e.clientY - pointerDownPos.y) > 5)) return;
+            if (!hoveredNode) return;
+            var d = hoveredNode.userData;
+            if (d.stub || !d.path) return;
+            window.location.href = '../' + d.path;
         });
 
         // ---- Search ----
@@ -1383,23 +1424,24 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         searchInput.addEventListener('input', function() {
             var q = this.value.toLowerCase().trim();
             if (!q) {
+                searchMatches = null;
                 resetHighlights();
                 return;
             }
-            var matched = null;
+            var ids = new Set();
             nodeMeshes.forEach(function(m) {
-                var title = (m.userData.title || '').toLowerCase();
-                var id = (m.userData.id || '').toLowerCase();
-                if (title.includes(q) || id.includes(q)) {
-                    matched = m;
-                    dimAllExcept(m.userData.id);
-                }
+                var d = m.userData;
+                var title = (d.title || '').toLowerCase();
+                var id = (d.id || '').toLowerCase();
+                var tagHit = (d.tags || []).some(function(t) { return t.toLowerCase().includes(q); });
+                if (title.includes(q) || id.includes(q) || tagHit) ids.add(d.id);
             });
-            if (matched) updateTooltip(matched, window.innerWidth / 2, window.innerHeight / 2);
+            searchMatches = ids;
+            highlightSet(ids);
         });
 
         searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') { this.value = ''; resetHighlights(); clearTooltip(); }
+            if (e.key === 'Escape') { this.value = ''; searchMatches = null; resetHighlights(); clearTooltip(); }
         });
 
         // ---- Resize ----
@@ -1476,7 +1518,6 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
 </body>
 </html>`
 		data := strings.Replace(nebulaHTML, "{{GRAPH_JSON}}", string(graphJSON), 1)
-	data = strings.Replace(data, "{{NODE_SIZE_BY_EDGES}}", strconv.FormatBool(nodeSizeByEdges), 1)
 		err := os.WriteFile(filepath.Join(graphDir, "nebula.html"), []byte(data), 0644)
 		if err != nil {
 			fmt.Printf("Error writing graph nebula.html: %v\n", err)
