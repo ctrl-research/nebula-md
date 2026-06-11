@@ -1088,9 +1088,18 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
-    <script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    const THREEOrbitControls = OrbitControls; // alias for legacy THREE.OrbitControls calls
     (function() {
         'use strict';
         var graph = {{GRAPH_JSON}};
@@ -1140,7 +1149,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
         camera.position.set(0, 0, 120);
 
-        var controls = new THREE.OrbitControls(camera, renderer.domElement);
+        var controls = new THREEOrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
         controls.rotateSpeed = 0.5;
