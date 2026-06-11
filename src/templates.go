@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 // generateHTMLTemplate produces the full HTML page for a rendered markdown file.
@@ -1091,8 +1093,8 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
     <script>
     (function() {
         'use strict';
-        var graph = %s;
-        var nodeSizeByEdges = %t;
+        var graph = {{GRAPH_JSON}};
+        var nodeSizeByEdges = {{NODE_SIZE_BY_EDGES}};
 
         // ---- Helpers ----
         function hashToHue(str) {
@@ -1464,7 +1466,8 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
     </script>
 </body>
 </html>`
-		data := fmt.Sprintf(nebulaHTML, graphJSON, nodeSizeByEdges)
+		data := strings.Replace(nebulaHTML, "{{GRAPH_JSON}}", string(graphJSON), 1)
+	data = strings.Replace(data, "{{NODE_SIZE_BY_EDGES}}", strconv.FormatBool(nodeSizeByEdges), 1)
 		err := os.WriteFile(filepath.Join(graphDir, "nebula.html"), []byte(data), 0644)
 		if err != nil {
 			fmt.Printf("Error writing graph nebula.html: %v\n", err)
