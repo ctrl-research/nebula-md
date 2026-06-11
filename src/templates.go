@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // generateHTMLTemplate produces the full HTML page for a rendered markdown file.
@@ -15,6 +16,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	tagsHTML := buildTagsHTML(pageGraph)
 	tocHTML := buildTocHTML(pageGraph)
 	siteNameJS, _ := json.Marshal(siteCfg.SiteName)
+	graphModeJS, _ := json.Marshal(siteCfg.GraphMode)
 
 	css := `
 	/* Google Fonts: Libre Baskerville for headings and site name, Lilex for body */
@@ -292,6 +294,7 @@ window.siteName = %[14]s;
         });
     }
 window.siteTheme = "%[13]s";
+window.graphMode = %[15]s;
 window.pageGraphData = %[10]s;
 window.navTree = %[11]s;
 </script>
@@ -518,7 +521,7 @@ window.navTree = %[11]s;
         var segs = window.pageGraphData.currentHref.split('/').filter(Boolean);
         var depth = Math.max(0, segs.length - 1);
         var base = depth > 0 ? '../'.repeat(depth) : '';
-        var graphPath = base + 'graph/index.html';
+        var graphPath = base + 'graph/' + (window.graphMode === 'nebula' ? 'nebula.html' : 'index.html');
         var iframe = document.getElementById('graph-iframe');
         iframe.src = graphPath;
         iframe.style.display = 'block';
@@ -645,7 +648,7 @@ window.navTree = %[11]s;
 </script>
 </body>
 </html>`,
-		title, css, title,
+	title, css, title,
 		pageGraph.ReadingTime,
 		pageGraph.Date,
 		htmlContent,
@@ -653,7 +656,7 @@ window.navTree = %[11]s;
 		tagsHTML,
 		tocHTML,
 		string(pageGraphJSON), navTreeJSON,
-		siteCfg.SiteName, siteCfg.SiteTheme, string(siteNameJS))
+		siteCfg.SiteName, siteCfg.SiteTheme, string(siteNameJS), string(graphModeJS))
 }
 
 // buildBacklinksHTML renders Links and Backlinks for the sidebar
@@ -744,10 +747,13 @@ func generateStubHTML(pageID string) string {
 </html>`, pageID, pageID, pageID)
 }
 
-// writeGraphViewer writes the full vault D3 graph viewer.
-func writeGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool) {
+// writeGraphViewer writes the full vault graph viewers.
+// Both renderers are always generated so the nebula's 2D button can link to the
+// classic D3 view; graphMode only controls which one the site nav opens.
+func writeGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool, graphMode GraphMode) {
 	downloadD3(graphDir)
 	writeFullGraphViewer(graphDir, graphJSON, siteTheme, siteName, nodeSizeByEdges)
+	writeFullGraphViewerNebula(graphDir, graphJSON, siteTheme, siteName, nodeSizeByEdges)
 }
 
 func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool) {
@@ -780,6 +786,13 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         #legend span { display: inline-block; width: 12px; height: 12px; border-radius: 50%%; margin-right: 6px; vertical-align: middle; }
         .legend-page { background: var(--link); }
         .legend-stub { background: #e67e22; }
+        #mode-toggle { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 4px; }
+        #mode-toggle a, #mode-toggle span.current {
+            background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px;
+            padding: 6px 12px; font-size: 0.8em; text-decoration: none; color: var(--text);
+        }
+        #mode-toggle span.current { background: var(--link); color: var(--bg); border-color: var(--link); }
+        #mode-toggle a:hover { border-color: var(--link); }
     </style>
 </head>
 <body>
@@ -787,6 +800,10 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         <h3>Legend</h3>
         <div><span class="legend-page"></span>Page</div>
         <div><span class="legend-stub"></span>Stub (dead link)</div>
+    </div>
+    <div id="mode-toggle">
+        <a href="nebula.html">3D</a>
+        <span class="current">2D</span>
     </div>
     <div id="graph"></div>
     <script src="d3.min.js"></script>
@@ -894,3 +911,615 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
 		fmt.Printf("Error writing graph index.html: %v\n", err)
 	}
 }
+
+// writeFullGraphViewerNebula renders the full vault graph as a 3D galaxy of glowing stars.
+func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme string, siteName string, nodeSizeByEdges bool) {
+	// The nebula viewer ships its own three.js — no CDN dependency at runtime.
+	// We bundle it inline via a CDN fetch during build (downloadThreeJS) or inline it.
+	// For simplicity we load OrbitControls from a CDN too.
+	if graphJSON == nil {
+		fmt.Printf("Error: graphJSON is nil — buildGraph likely failed. Skipping nebula.html\n")
+		return
+	}
+	nebulaHTML := `<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23161a22' stroke='%236bb3d9' stroke-width='2'/><circle cx='10' cy='12' r='2.5' fill='%236bb3d9'/><circle cx='22' cy='12' r='2.5' fill='%236bb3d9'/><circle cx='16' cy='22' r='2.5' fill='%236bb3d9'/><line x1='10' y1='12' x2='16' y2='22' stroke='%236bb3d9' stroke-width='1.5'/><line x1='22' y1='12' x2='16' y2='22' stroke='%236bb3d9' stroke-width='1.5'/><line x1='10' y1='12' x2='22' y2='12' stroke='%236bb3d9' stroke-width='1.5'/></svg>" type="image/svg+xml">
+    <title>Graph — Nebula</title>
+    <style>
+        :root, [data-theme="dark"] {
+            --bg: #06060f;
+            --text: #e0e0e0;
+            --border: #1a1a2e;
+            --heading: #ffffff;
+            --card-bg: #0e0e1f;
+            --link: #6bb3d9;
+            --muted: #556;
+        }
+        [data-theme="light"] {
+            --bg: #f0f0f8;
+            --text: #1a1a2e;
+            --border: #ccc;
+            --heading: #1a1a2e;
+            --card-bg: #fff;
+            --link: #2980b9;
+            --muted: #888;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { width: 100%; height: 100%; overflow: hidden; margin: 0; background: var(--bg); }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); }
+        #canvas-container { position: fixed; inset: 0; z-index: 0; }
+        canvas { display: block; width: 100% !important; height: 100% !important; }
+
+        /* HUD overlay */
+        #hud {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #legend {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(14,14,31,0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-size: 12px;
+            color: var(--text);
+            min-width: 140px;
+            pointer-events: auto;
+        }
+        #legend h3 { margin: 0 0 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+        .legend-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+        .legend-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            box-shadow: 0 0 6px currentColor;
+        }
+        .legend-line {
+            width: 20px; height: 1px;
+            background: currentColor; opacity: 0.5;
+        }
+        .legend-page .legend-dot { background: #fff; color: #fff; box-shadow: 0 0 6px #fff, 0 0 12px rgba(107,179,217,0.6); }
+        .legend-stub .legend-dot { background: none; border: 1.5px dashed #e67e22; box-shadow: none; }
+        .legend-edge .legend-line { background: rgba(107,179,217,0.4); }
+
+        /* Search bar */
+        #search-container {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            pointer-events: auto;
+        }
+        #search-input {
+            background: rgba(14,14,31,0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            color: var(--text);
+            padding: 8px 18px;
+            font-size: 13px;
+            width: 280px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        #search-input:focus { border-color: var(--link); box-shadow: 0 0 0 2px rgba(107,179,217,0.2); }
+        #search-input::placeholder { color: var(--muted); }
+
+        /* Tooltip */
+        #tooltip {
+            position: absolute;
+            display: none;
+            background: rgba(14,14,31,0.92);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: var(--text);
+            pointer-events: none;
+            z-index: 20;
+            max-width: 220px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        #tooltip .tt-title { font-weight: 600; color: var(--heading); margin-bottom: 4px; font-size: 13px; }
+        #tooltip .tt-meta { color: var(--muted); font-size: 11px; margin-top: 5px; }
+        #tooltip .tt-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+        #tooltip .tt-tag {
+            display: inline-block; padding: 1px 7px;
+            background: var(--link); color: var(--bg);
+            border-radius: 10px; font-size: 10px; font-weight: 500;
+        }
+
+        /* Mode toggle */
+        #mode-toggle {
+            position: absolute; bottom: 20px; right: 20px;
+            pointer-events: auto;
+            display: flex; gap: 4px;
+        }
+        #mode-toggle button {
+            background: rgba(14,14,31,0.85);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #mode-toggle button:hover { border-color: var(--link); color: var(--text); }
+        #mode-toggle button.active { background: var(--link); color: var(--bg); border-color: var(--link); }
+
+        /* Controls hint */
+        #controls-hint {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            color: var(--muted); font-size: 11px; text-align: center;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* Node count badge */
+        #node-count {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(14,14,31,0.85);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+        #node-count strong { color: var(--text); }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="hud">
+        <div id="search-container">
+            <input id="search-input" type="text" placeholder="Search nodes..." autocomplete="off" />
+        </div>
+        <div id="node-count">Nodes: <strong id="node-count-num">0</strong> · Edges: <strong id="edge-count-num">0</strong></div>
+        <div id="legend">
+            <h3>Legend</h3>
+            <div class="legend-row legend-page"><span class="legend-dot"></span>Page</div>
+            <div class="legend-row legend-stub"><span class="legend-dot"></span>Stub (dead link)</div>
+            <div class="legend-row legend-edge"><span class="legend-line"></span>Wikilink</div>
+        </div>
+        <div id="tooltip">
+            <div class="tt-title" id="tt-title"></div>
+            <div class="tt-meta" id="tt-meta"></div>
+            <div class="tt-tags" id="tt-tags"></div>
+        </div>
+        <div id="controls-hint">Drag to rotate · Scroll to zoom · Click to navigate</div>
+        <div id="mode-toggle">
+            <button class="active" id="btn-spin" onclick="toggleSpin()">Spin: On</button>
+            <button class="active" id="btn-3d" onclick="setCameraMode('3d')">3D</button>
+            <button id="btn-2d" onclick="setCameraMode('2d')">2D</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    const THREEOrbitControls = OrbitControls; // alias for legacy THREE.OrbitControls calls
+    (function() {
+        'use strict';
+        var graph = {{GRAPH_JSON}};
+        // Unlike the 2D graph, nodes are uniform size in 3D — edge-based sizing is omitted here.
+        var NODE_SIZE = 1.8;
+
+        // ---- Helpers ----
+        function hashToHue(str) {
+            var h = 0;
+            for (var i = 0; i < str.length; i++) {
+                h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+            }
+            return Math.abs(h) % 360;
+        }
+        function hslColor(h, s, l) {
+            return 'hsl(' + h + ',' + s + '%,' + l + '%)';
+        }
+
+        // ---- Build edge count map ----
+        var edgeCount = {};
+        graph.nodes.forEach(function(n) { edgeCount[n.id] = 0; });
+        graph.edges.forEach(function(e) {
+            var sid = typeof e.source === 'object' ? e.source.id : e.source;
+            var tid = typeof e.target === 'object' ? e.target.id : e.target;
+            edgeCount[sid] = (edgeCount[sid] || 0) + 1;
+            edgeCount[tid] = (edgeCount[tid] || 0) + 1;
+        });
+
+        // ---- Build neighbor map ----
+        var neighbors = {};
+        graph.nodes.forEach(function(n) { neighbors[n.id] = new Set(); });
+        graph.edges.forEach(function(e) {
+            var sid = typeof e.source === 'object' ? e.source.id : e.source;
+            var tid = typeof e.target === 'object' ? e.target.id : e.target;
+            if (neighbors[sid]) neighbors[sid].add(tid);
+            if (neighbors[tid]) neighbors[tid].add(sid);
+        });
+
+        // ---- Three.js setup ----
+        var container = document.getElementById('canvas-container');
+        var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x06060f, 1);
+        container.appendChild(renderer.domElement);
+
+        var scene = new THREE.Scene();
+        var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.set(0, 0, 120);
+
+        var controls = new THREEOrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.rotateSpeed = 0.5;
+        controls.zoomSpeed = 1.2;
+        controls.minDistance = 10;
+        controls.maxDistance = 600;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.3;
+
+        // ---- Idle spin toggle ----
+        var spinEnabled = true;
+        window.toggleSpin = function() {
+            spinEnabled = !spinEnabled;
+            controls.autoRotate = spinEnabled;
+            var btn = document.getElementById('btn-spin');
+            btn.classList.toggle('active', spinEnabled);
+            btn.textContent = spinEnabled ? 'Spin: On' : 'Spin: Off';
+        };
+
+        // ---- View mode (3D nebula vs classic 2D graph) ----
+        window.setCameraMode = function(mode) {
+            if (mode === '2d') window.location.href = 'index.html';
+        };
+
+        // ---- Starfield background ----
+        var starGeo = new THREE.BufferGeometry();
+        var starCount = 1500;
+        var starPos = new Float32Array(starCount * 3);
+        for (var si = 0; si < starCount * 3; si++) {
+            starPos[si] = (Math.random() - 0.5) * 2000;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        var starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.4 });
+        scene.add(new THREE.Points(starGeo, starMat));
+
+        // ---- Node meshes ----
+        var nodeMap = {}; // id -> { mesh, glow, data }
+        var nodeMeshes = [];
+
+        var nodeGeo = new THREE.SphereGeometry(1, 16, 16);
+        var glowGeo = new THREE.SphereGeometry(1, 16, 16);
+
+        graph.nodes.forEach(function(n) {
+            var hue = hashToHue(n.id);
+            var size = NODE_SIZE;
+            var baseColor = new THREE.Color().setHSL(hue / 360, 0.6, 0.85);
+
+            // Core star mesh (transparent so search/hover dimming can fade it)
+            var mat = new THREE.MeshBasicMaterial({ color: baseColor, transparent: true, opacity: 1.0 });
+            var mesh = new THREE.Mesh(nodeGeo, mat);
+            mesh.scale.setScalar(size);
+
+            // Outer glow (slightly larger, transparent)
+            var glowMat = new THREE.MeshBasicMaterial({
+                color: baseColor,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.BackSide
+            });
+            var glow = new THREE.Mesh(glowGeo, glowMat);
+            glow.scale.setScalar(size * 1.6);
+            mesh.add(glow);
+
+            // Even larger dim glow for halo
+            var haloMat = new THREE.MeshBasicMaterial({
+                color: baseColor,
+                transparent: true,
+                opacity: 0.05,
+                side: THREE.BackSide
+            });
+            var halo = new THREE.Mesh(glowGeo, haloMat);
+            halo.scale.setScalar(size * 2.8);
+            mesh.add(halo);
+
+            // Glow/halo are purely visual — exclude them from raycasting so hover
+            // and click only respond to the core star, not its larger aura shells.
+            glow.raycast = function() {};
+            halo.raycast = function() {};
+
+            // Stub nodes: dashed ring instead of filled star
+            if (n.stub) {
+                mat = new THREE.MeshBasicMaterial({ color: 0xe67e22, transparent: true, opacity: 0.7, wireframe: true });
+                mesh.material = mat;
+                glow.material = new THREE.MeshBasicMaterial({ color: 0xe67e22, transparent: true, opacity: 0.1, side: THREE.BackSide });
+                halo.material = new THREE.MeshBasicMaterial({ color: 0xe67e22, transparent: true, opacity: 0.05, side: THREE.BackSide });
+            }
+
+            // Random position in sphere
+            var theta = Math.random() * Math.PI * 2;
+            var phi = Math.acos(2 * Math.random() - 1);
+            var r = 30 + Math.random() * 70;
+            mesh.position.set(
+                r * Math.sin(phi) * Math.cos(theta),
+                r * Math.sin(phi) * Math.sin(theta),
+                r * Math.cos(phi)
+            );
+            mesh.userData = { id: n.id, title: n.title, stub: !!n.stub, path: n.path, tags: n.tags || [] };
+            scene.add(mesh);
+            nodeMeshes.push(mesh);
+            nodeMap[n.id] = mesh;
+        });
+
+        document.getElementById('node-count-num').textContent = graph.nodes.length;
+
+        // ---- Edge meshes ----
+        var edgeObjects = []; // { line, sourceId, targetId }
+        graph.edges.forEach(function(e) {
+            var sid = typeof e.source === 'object' ? e.source.id : e.source;
+            var tid = typeof e.target === 'object' ? e.target.id : e.target;
+            var sMesh = nodeMap[sid];
+            var tMesh = nodeMap[tid];
+            if (!sMesh || !tMesh) return;
+
+            var hue = hashToHue(sid);
+            var lineColor = new THREE.Color().setHSL(hue / 360, 0.4, 0.5);
+            var points = [sMesh.position.clone(), tMesh.position.clone()];
+            var geo = new THREE.BufferGeometry().setFromPoints(points);
+            var mat = new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: 0.18 });
+            var line = new THREE.Line(geo, mat);
+            scene.add(line);
+            edgeObjects.push({ line, sourceId: sid, targetId: tid, mat });
+        });
+        document.getElementById('edge-count-num').textContent = edgeObjects.length;
+
+        // ---- Raycasting for hover/click ----
+        var raycaster = new THREE.Raycaster();
+        raycaster.params.Line = { threshold: 2 };
+        var mouse = new THREE.Vector2();
+        var hoveredNode = null;
+        var tooltipEl = document.getElementById('tooltip');
+
+        function updateTooltip(node, x, y) {
+            var titleEl = document.getElementById('tt-title');
+            var metaEl = document.getElementById('tt-meta');
+            var tagsEl = document.getElementById('tt-tags');
+            titleEl.textContent = node.userData.title || node.userData.id;
+            var ec = edgeCount[node.userData.id] || 0;
+            metaEl.textContent = ec + ' connection' + (ec !== 1 ? 's' : '');
+            tagsEl.innerHTML = '';
+            if (node.userData.stub) {
+                var stub = document.createElement('span');
+                stub.className = 'tt-tag';
+                stub.style.background = '#e67e22';
+                stub.textContent = 'stub';
+                tagsEl.appendChild(stub);
+            }
+            (node.userData.tags || []).forEach(function(t) {
+                var tag = document.createElement('span');
+                tag.className = 'tt-tag';
+                tag.textContent = t;
+                tagsEl.appendChild(tag);
+            });
+            tooltipEl.style.display = 'block';
+            var tx = Math.min(x + 16, window.innerWidth - 240);
+            var ty = Math.min(y + 16, window.innerHeight - 80);
+            tooltipEl.style.left = tx + 'px';
+            tooltipEl.style.top = ty + 'px';
+        }
+
+        function clearTooltip() {
+            tooltipEl.style.display = 'none';
+            hoveredNode = null;
+        }
+
+        function dimAllExcept(keepId) {
+            var connected = new Set([keepId]);
+            if (neighbors[keepId]) neighbors[keepId].forEach(function(id) { connected.add(id); });
+
+            nodeMeshes.forEach(function(m) {
+                var id = m.userData.id;
+                if (id === keepId) {
+                    m.scale.setScalar(2.2);
+                    m.material.opacity = 1.0;
+                } else if (connected.has(id)) {
+                    m.scale.setScalar(1.5);
+                    m.material.opacity = m.userData.stub ? 0.7 : 1.0;
+                } else {
+                    m.scale.setScalar(0.8);
+                    m.material.opacity = 0.15;
+                }
+            });
+            edgeObjects.forEach(function(eo) {
+                var s = eo.sourceId, t = eo.targetId;
+                if (s === keepId || t === keepId) {
+                    eo.mat.opacity = 0.5;
+                } else {
+                    eo.mat.opacity = 0.04;
+                }
+            });
+        }
+
+        // Highlight a set of node ids (search results); dim everything else.
+        function highlightSet(ids) {
+            nodeMeshes.forEach(function(m) {
+                if (ids.has(m.userData.id)) {
+                    m.scale.setScalar(2.2);
+                    m.material.opacity = m.userData.stub ? 0.9 : 1.0;
+                } else {
+                    m.scale.setScalar(0.8);
+                    m.material.opacity = 0.15;
+                }
+            });
+            edgeObjects.forEach(function(eo) {
+                eo.mat.opacity = (ids.has(eo.sourceId) || ids.has(eo.targetId)) ? 0.4 : 0.04;
+            });
+        }
+
+        function resetHighlights() {
+            nodeMeshes.forEach(function(m) {
+                m.scale.setScalar(NODE_SIZE);
+                m.material.opacity = m.userData.stub ? 0.7 : 1.0;
+            });
+            edgeObjects.forEach(function(eo) { eo.mat.opacity = 0.18; });
+        }
+
+        // Active search matches persist as the baseline highlight when not hovering.
+        var searchMatches = null;
+        function restoreBaseline() {
+            if (searchMatches) highlightSet(searchMatches);
+            else resetHighlights();
+        }
+
+        window.addEventListener('mousemove', function(e) {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            // Non-recursive: only test core star meshes, never their glow/halo children.
+            var hits = raycaster.intersectObjects(nodeMeshes, false);
+            if (hits.length > 0) {
+                var hit = hits[0].object;
+                if (hoveredNode !== hit) {
+                    hoveredNode = hit;
+                    dimAllExcept(hit.userData.id);
+                }
+                updateTooltip(hit, e.clientX, e.clientY);
+                controls.autoRotate = false;
+            } else {
+                if (hoveredNode !== null) {
+                    restoreBaseline();
+                    clearTooltip();
+                    controls.autoRotate = spinEnabled;
+                }
+            }
+        });
+
+        // Track pointer-down so an orbit drag that ends over a node doesn't navigate.
+        var pointerDownPos = null;
+        window.addEventListener('pointerdown', function(e) {
+            pointerDownPos = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('click', function(e) {
+            if (e.target !== renderer.domElement) return;
+            if (pointerDownPos && (Math.abs(e.clientX - pointerDownPos.x) > 5 || Math.abs(e.clientY - pointerDownPos.y) > 5)) return;
+            if (!hoveredNode) return;
+            var d = hoveredNode.userData;
+            if (d.stub || !d.path) return;
+            window.location.href = '../' + d.path;
+        });
+
+        // ---- Search ----
+        var searchInput = document.getElementById('search-input');
+        searchInput.addEventListener('input', function() {
+            var q = this.value.toLowerCase().trim();
+            if (!q) {
+                searchMatches = null;
+                resetHighlights();
+                return;
+            }
+            var ids = new Set();
+            nodeMeshes.forEach(function(m) {
+                var d = m.userData;
+                var title = (d.title || '').toLowerCase();
+                var id = (d.id || '').toLowerCase();
+                var tagHit = (d.tags || []).some(function(t) { return t.toLowerCase().includes(q); });
+                if (title.includes(q) || id.includes(q) || tagHit) ids.add(d.id);
+            });
+            searchMatches = ids;
+            highlightSet(ids);
+        });
+
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') { this.value = ''; searchMatches = null; resetHighlights(); clearTooltip(); }
+        });
+
+        // ---- Resize ----
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ---- Simulated physics (gentle repulsion + centering) ----
+        // We use a simple Euler integration to spread nodes
+        var positions = nodeMeshes.map(function(m) { return m.position.clone(); });
+        var velocities = nodeMeshes.map(function() { return new THREE.Vector3(); });
+
+        function simulate(dt) {
+            var center = new THREE.Vector3(0, 0, 0);
+            var count = positions.length;
+
+            for (var i = 0; i < count; i++) {
+                var p = positions[i];
+                var v = velocities[i];
+
+                // Repulsion between all pairs
+                for (var j = i + 1; j < count; j++) {
+                    var q = positions[j];
+                    var dx = p.x - q.x, dy = p.y - q.y, dz = p.z - q.z;
+                    var dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.001;
+                    var force = 800 / (dist * dist);
+                    var fx = dx / dist * force, fy = dy / dist * force, fz = dz / dist * force;
+                    v.x += fx * dt; v.y += fy * dt; v.z += fz * dt;
+                    velocities[j].x -= fx * dt; velocities[j].y -= fy * dt; velocities[j].z -= fz * dt;
+                }
+
+                // Center gravity
+                var cx = -p.x * 0.005, cy = -p.y * 0.005, cz = -p.z * 0.005;
+                v.x += cx * dt; v.y += cy * dt; v.z += cz * dt;
+
+                // Damping
+                v.multiplyScalar(0.92);
+            }
+
+            // Apply velocities
+            for (var k = 0; k < count; k++) {
+                positions[k].add(velocities[k].clone().multiplyScalar(dt));
+                nodeMeshes[k].position.copy(positions[k]);
+            }
+
+            // Update edge geometry
+            edgeObjects.forEach(function(eo) {
+                var sMesh = nodeMap[eo.sourceId];
+                var tMesh = nodeMap[eo.targetId];
+                if (!sMesh || !tMesh) return;
+                var pos = eo.line.geometry.attributes.position;
+                pos.setXYZ(0, sMesh.position.x, sMesh.position.y, sMesh.position.z);
+                pos.setXYZ(1, tMesh.position.x, tMesh.position.y, tMesh.position.z);
+                pos.needsUpdate = true;
+            });
+        }
+
+        // ---- Animation loop ----
+        var lastTime = 0;
+        function animate(time) {
+            requestAnimationFrame(animate);
+            var dt = Math.min((time - lastTime) / 1000, 0.05);
+            lastTime = time;
+
+            simulate(dt);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate(0);
+    })();
+    </script>
+</body>
+</html>`
+		data := strings.Replace(nebulaHTML, "{{GRAPH_JSON}}", string(graphJSON), 1)
+		err := os.WriteFile(filepath.Join(graphDir, "nebula.html"), []byte(data), 0644)
+		if err != nil {
+			fmt.Printf("Error writing graph nebula.html: %v\n", err)
+		}
+	}
