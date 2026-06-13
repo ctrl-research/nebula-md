@@ -35,6 +35,11 @@ on:
         required: false
         default: ""
         type: string
+      graph_mode:
+        description: "Graph viewer: 2d (default) or nebula (3D galaxy)"
+        required: false
+        default: "2d"
+        type: string
 
   workflow_call:
     inputs:
@@ -64,6 +69,11 @@ on:
         description: "Comma-separated list of directory names to ignore"
         required: false
         default: ""
+        type: string
+      graph_mode:
+        description: "Graph viewer: 2d (default) or nebula (3D galaxy)"
+        required: false
+        default: "2d"
         type: string
 
 jobs:
@@ -123,6 +133,7 @@ jobs:
           BASALT_SITE_NAME: ${{ inputs.site_name || 'Basalt 🪨' }}
           BASALT_SITE_THEME: ${{ inputs.site_theme || 'dark' }}
           BASALT_IGNORED_DIRS: ${{ inputs.ignored_dirs || '' }}
+          BASALT_GRAPH_MODE: ${{ inputs.graph_mode || '2d' }}
           BASALT_INPUT: vault
           BASALT_OUTPUT: output
 
