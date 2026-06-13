@@ -925,7 +925,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
 <html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23161a22' stroke='%236bb3d9' stroke-width='2'/><circle cx='10' cy='12' r='2.5' fill='%236bb3d9'/><circle cx='22' cy='12' r='2.5' fill='%236bb3d9'/><circle cx='16' cy='22' r='2.5' fill='%236bb3d9'/><line x1='10' y1='12' x2='16' y2='22' stroke='%236bb3d9' stroke-width='1.5'/><line x1='22' y1='12' x2='16' y2='22' stroke='%236bb3d9' stroke-width='1.5'/><line x1='10' y1='12' x2='22' y2='12' stroke='%236bb3d9' stroke-width='1.5'/></svg>" type="image/svg+xml">
     <title>Graph — Nebula</title>
     <style>
@@ -948,10 +948,10 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             --muted: #888;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { width: 100%; height: 100%; overflow: hidden; margin: 0; background: var(--bg); }
+        html, body { width: 100%; height: 100%; overflow: hidden; margin: 0; background: var(--bg); overscroll-behavior: none; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); }
-        #canvas-container { position: fixed; inset: 0; z-index: 0; }
-        canvas { display: block; width: 100% !important; height: 100% !important; }
+        #canvas-container { position: fixed; inset: 0; z-index: 0; touch-action: none; }
+        canvas { display: block; width: 100% !important; height: 100% !important; touch-action: none; -webkit-user-select: none; user-select: none; }
 
         /* HUD overlay */
         #hud {
@@ -1057,17 +1057,61 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             opacity: 0.7;
         }
 
-        /* Node count badge */
+        /* Node count footer inside the legend */
         #node-count {
-            position: absolute; top: 20px; left: 20px;
-            background: rgba(14,14,31,0.85);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 6px 12px;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
             font-size: 11px;
             color: var(--muted);
         }
         #node-count strong { color: var(--text); }
+
+        /* ---- Mobile / touch layout ---- */
+        /* Desktop stacks search (top-center) over a top-right legend and a
+           bottom-right toggle. On a phone those overlap, so re-stack into a
+           clean vertical flow: search at the very top, hint under it, then
+           legend and the mode toggle pinned to the bottom. */
+        @media (max-width: 768px) {
+            #search-container {
+                top: 12px; left: 12px; right: 12px;
+                transform: none;
+            }
+            #search-input {
+                width: 100%;
+                padding: 11px 16px;
+                font-size: 16px; /* >=16px stops iOS from zooming on focus */
+            }
+            #controls-hint {
+                top: 60px; bottom: auto;
+                left: 12px; right: 12px;
+                transform: none;
+                font-size: 10px;
+                line-height: 1.4;
+            }
+            /* Legend becomes a compact horizontal strip just above the toggle. */
+            #legend {
+                top: auto; bottom: 58px; left: 12px; right: 12px;
+                min-width: 0;
+                padding: 8px 12px;
+                display: flex; flex-wrap: wrap;
+                align-items: center; justify-content: center;
+                gap: 6px 14px;
+            }
+            #legend h3 { display: none; }
+            .legend-row { margin: 0; }
+            #node-count {
+                flex-basis: 100%;
+                margin: 0; padding: 0; border: none;
+                text-align: center;
+            }
+            #mode-toggle {
+                bottom: 12px; left: 12px; right: 12px;
+                justify-content: center;
+            }
+            #mode-toggle button { padding: 9px 13px; font-size: 12px; }
+            #tooltip { max-width: 70vw; }
+        }
     </style>
 </head>
 <body>
@@ -1076,12 +1120,12 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         <div id="search-container">
             <input id="search-input" type="text" placeholder="Search nodes..." autocomplete="off" />
         </div>
-        <div id="node-count">Nodes: <strong id="node-count-num">0</strong> · Edges: <strong id="edge-count-num">0</strong></div>
         <div id="legend">
             <h3>Legend</h3>
             <div class="legend-row legend-page"><span class="legend-dot"></span>Page</div>
             <div class="legend-row legend-stub"><span class="legend-dot"></span>Stub (dead link)</div>
             <div class="legend-row legend-edge"><span class="legend-line"></span>Wikilink</div>
+            <div id="node-count">Nodes: <strong id="node-count-num">0</strong> · Edges: <strong id="edge-count-num">0</strong></div>
         </div>
         <div id="tooltip">
             <div class="tt-title" id="tt-title"></div>
@@ -1090,6 +1134,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         </div>
         <div id="controls-hint">Drag to rotate · Scroll to zoom · Click to navigate</div>
         <div id="mode-toggle">
+            <button id="btn-labels" onclick="toggleLabels()">Labels: Off</button>
             <button class="active" id="btn-spin" onclick="toggleSpin()">Spin: On</button>
             <button class="active" id="btn-3d" onclick="setCameraMode('3d')">3D</button>
             <button id="btn-2d" onclick="setCameraMode('2d')">2D</button>
@@ -1164,9 +1209,28 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         controls.rotateSpeed = 0.5;
         controls.zoomSpeed = 1.2;
         controls.minDistance = 10;
-        controls.maxDistance = 600;
+        controls.maxDistance = 1200;
         controls.autoRotate = true;
         controls.autoRotateSpeed = 0.3;
+
+        // ---- Initial zoom: fit every node in view ----
+        // The force layout expands over the first seconds, so keep re-fitting the
+        // camera distance each frame until the user takes over (drag/zoom).
+        var autoFit = true;
+        controls.addEventListener('start', function() { autoFit = false; });
+        function fitDistance() {
+            var maxR = 0;
+            for (var i = 0; i < nodeMeshes.length; i++) {
+                var len = nodeMeshes[i].position.length();
+                if (len > maxR) maxR = len;
+            }
+            var vFov = camera.fov * Math.PI / 180;
+            // In portrait the horizontal fov is the limiting one.
+            var hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+            var fov = Math.min(vFov, hFov);
+            var dist = (maxR + NODE_SIZE * 2) / Math.tan(fov / 2) * 1.1;
+            return Math.min(Math.max(dist, controls.minDistance), controls.maxDistance);
+        }
 
         // ---- Idle spin toggle ----
         var spinEnabled = true;
@@ -1181,6 +1245,55 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         // ---- View mode (3D nebula vs classic 2D graph) ----
         window.setCameraMode = function(mode) {
             if (mode === '2d') window.location.href = 'index.html';
+        };
+
+        // ---- Touch detection (coarse pointer = phones/tablets) ----
+        var isTouch = window.matchMedia('(pointer: coarse)').matches;
+        if (isTouch) {
+            document.getElementById('controls-hint').textContent =
+                'Drag to rotate · Pinch to zoom · Tap to select, tap again to open';
+        }
+
+        // ---- Node name labels (all nodes, toggled via Labels button) ----
+        var labelsEnabled = false;
+        var labelSprites = []; // { sprite, mesh }
+        function makeLabelSprite(text) {
+            var canvas = document.createElement('canvas');
+            var ctx = canvas.getContext('2d');
+            var fontSize = 28;
+            var font = '500 ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.font = font;
+            canvas.width = Math.ceil(ctx.measureText(text).width) + 16;
+            canvas.height = fontSize + 14;
+            ctx.font = font; // canvas resize resets context state
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(0,0,0,0.9)';
+            ctx.shadowBlur = 6;
+            ctx.fillStyle = 'rgba(224,230,240,0.95)';
+            ctx.fillText(text, 8, canvas.height / 2);
+            var tex = new THREE.CanvasTexture(canvas);
+            tex.minFilter = THREE.LinearFilter;
+            var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+            var sprite = new THREE.Sprite(mat);
+            var scale = 0.08; // world units per canvas px (~legend font size on screen)
+            sprite.scale.set(canvas.width * scale, canvas.height * scale, 1);
+            sprite.center.set(0.5, 0); // anchor at bottom so the label floats above the node
+            sprite.raycast = function() {};
+            return sprite;
+        }
+        window.toggleLabels = function() {
+            labelsEnabled = !labelsEnabled;
+            var btn = document.getElementById('btn-labels');
+            btn.classList.toggle('active', labelsEnabled);
+            btn.textContent = labelsEnabled ? 'Labels: On' : 'Labels: Off';
+            if (labelsEnabled && labelSprites.length === 0) {
+                nodeMeshes.forEach(function(m) {
+                    var sprite = makeLabelSprite(m.userData.title || m.userData.id);
+                    scene.add(sprite);
+                    labelSprites.push({ sprite: sprite, mesh: m });
+                });
+            }
+            labelSprites.forEach(function(l) { l.sprite.visible = labelsEnabled; });
         };
 
         // ---- Starfield background ----
@@ -1218,8 +1331,9 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 opacity: 0.15,
                 side: THREE.BackSide
             });
+            // Child of the node mesh, so scale here is relative to the core star.
             var glow = new THREE.Mesh(glowGeo, glowMat);
-            glow.scale.setScalar(size * 1.6);
+            glow.scale.setScalar(1.15);
             mesh.add(glow);
 
             // Even larger dim glow for halo
@@ -1230,7 +1344,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 side: THREE.BackSide
             });
             var halo = new THREE.Mesh(glowGeo, haloMat);
-            halo.scale.setScalar(size * 2.8);
+            halo.scale.setScalar(1.3);
             mesh.add(halo);
 
             // Glow/halo are purely visual — exclude them from raycasting so hover
@@ -1283,6 +1397,9 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         });
         document.getElementById('edge-count-num').textContent = edgeObjects.length;
 
+        // Labels default to on (toggleLabels flips from the initial Off state).
+        window.toggleLabels();
+
         // ---- Raycasting for hover/click ----
         var raycaster = new THREE.Raycaster();
         raycaster.params.Line = { threshold: 2 };
@@ -1312,8 +1429,12 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 tagsEl.appendChild(tag);
             });
             tooltipEl.style.display = 'block';
-            var tx = Math.min(x + 16, window.innerWidth - 240);
-            var ty = Math.min(y + 16, window.innerHeight - 80);
+            // Clamp against the tooltip's real size so it stays on-screen at any
+            // viewport width (mobile widens it to 70vw via the media query).
+            var tw = tooltipEl.offsetWidth || 240;
+            var th = tooltipEl.offsetHeight || 80;
+            var tx = Math.max(12, Math.min(x + 16, window.innerWidth - tw - 12));
+            var ty = Math.max(12, Math.min(y + 16, window.innerHeight - th - 12));
             tooltipEl.style.left = tx + 'px';
             tooltipEl.style.top = ty + 'px';
         }
@@ -1410,11 +1531,44 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             pointerDownPos = { x: e.clientX, y: e.clientY };
         });
 
+        // Last node selected by a tap on a touch device — first tap selects
+        // (tooltip + highlight), a second tap on the same node navigates.
+        var tappedId = null;
+
         window.addEventListener('click', function(e) {
             if (e.target !== renderer.domElement) return;
-            if (pointerDownPos && (Math.abs(e.clientX - pointerDownPos.x) > 5 || Math.abs(e.clientY - pointerDownPos.y) > 5)) return;
-            if (!hoveredNode) return;
-            var d = hoveredNode.userData;
+            if (pointerDownPos && (Math.abs(e.clientX - pointerDownPos.x) > 8 || Math.abs(e.clientY - pointerDownPos.y) > 8)) return;
+
+            // Raycast at the click point — on touch devices mousemove never fires,
+            // so hoveredNode can't be relied on here.
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            var hits = raycaster.intersectObjects(nodeMeshes, false);
+
+            if (hits.length === 0) {
+                if (isTouch) {
+                    tappedId = null;
+                    restoreBaseline();
+                    clearTooltip();
+                    controls.autoRotate = spinEnabled;
+                }
+                return;
+            }
+
+            var hit = hits[0].object;
+            var d = hit.userData;
+
+            if (isTouch && tappedId !== d.id) {
+                // First tap: select and show the tooltip instead of navigating.
+                tappedId = d.id;
+                hoveredNode = hit;
+                dimAllExcept(d.id);
+                updateTooltip(hit, e.clientX, e.clientY);
+                controls.autoRotate = false;
+                return;
+            }
+
             if (d.stub || !d.path) return;
             window.location.href = '../' + d.path;
         });
@@ -1508,7 +1662,24 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             var dt = Math.min((time - lastTime) / 1000, 0.05);
             lastTime = time;
 
-            simulate(dt);
+            // Hovering a node freezes the layout so it's easy to read/click.
+            if (!hoveredNode) simulate(dt);
+
+            if (labelsEnabled) {
+                labelSprites.forEach(function(l) {
+                    var p = l.mesh.position;
+                    l.sprite.position.set(p.x, p.y + NODE_SIZE * 1.4, p.z);
+                });
+            }
+
+            // Ease the camera out to keep the whole graph in frame until the
+            // user takes over with a drag or zoom.
+            if (autoFit) {
+                var target = fitDistance();
+                var cur = camera.position.length();
+                camera.position.setLength(cur + (target - cur) * 0.08);
+            }
+
             controls.update();
             renderer.render(scene, camera);
         }
