@@ -1390,7 +1390,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             var lineColor = new THREE.Color().setHSL(hue / 360, 0.4, 0.5);
             var points = [sMesh.position.clone(), tMesh.position.clone()];
             var geo = new THREE.BufferGeometry().setFromPoints(points);
-            var mat = new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: 0.18 });
+            var mat = new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: 0.4 });
             var line = new THREE.Line(geo, mat);
             scene.add(line);
             edgeObjects.push({ line, sourceId: sid, targetId: tid, mat });
@@ -1453,20 +1453,23 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 if (id === keepId) {
                     m.scale.setScalar(2.2);
                     m.material.opacity = 1.0;
+                    m.userData.dimmed = false;
                 } else if (connected.has(id)) {
                     m.scale.setScalar(1.5);
                     m.material.opacity = m.userData.stub ? 0.7 : 1.0;
+                    m.userData.dimmed = false;
                 } else {
                     m.scale.setScalar(0.8);
                     m.material.opacity = 0.15;
+                    m.userData.dimmed = true;
                 }
             });
             edgeObjects.forEach(function(eo) {
                 var s = eo.sourceId, t = eo.targetId;
                 if (s === keepId || t === keepId) {
-                    eo.mat.opacity = 0.5;
+                    eo.mat.opacity = 0.75;
                 } else {
-                    eo.mat.opacity = 0.04;
+                    eo.mat.opacity = 0.06;
                 }
             });
         }
@@ -1477,13 +1480,17 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 if (ids.has(m.userData.id)) {
                     m.scale.setScalar(2.2);
                     m.material.opacity = m.userData.stub ? 0.9 : 1.0;
+                    m.userData.dimmed = false;
                 } else {
                     m.scale.setScalar(0.8);
                     m.material.opacity = 0.15;
+                    m.userData.dimmed = true;
                 }
             });
             edgeObjects.forEach(function(eo) {
-                eo.mat.opacity = (ids.has(eo.sourceId) || ids.has(eo.targetId)) ? 0.4 : 0.04;
+                // For a search, only edges between two matches stay bright — an
+                // edge to a dimmed node would otherwise read as a false match.
+                eo.mat.opacity = (ids.has(eo.sourceId) && ids.has(eo.targetId)) ? 0.7 : 0.06;
             });
         }
 
@@ -1491,8 +1498,9 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             nodeMeshes.forEach(function(m) {
                 m.scale.setScalar(NODE_SIZE);
                 m.material.opacity = m.userData.stub ? 0.7 : 1.0;
+                m.userData.dimmed = false;
             });
-            edgeObjects.forEach(function(eo) { eo.mat.opacity = 0.18; });
+            edgeObjects.forEach(function(eo) { eo.mat.opacity = 0.4; });
         }
 
         // Active search matches persist as the baseline highlight when not hovering.
@@ -1669,6 +1677,10 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 labelSprites.forEach(function(l) {
                     var p = l.mesh.position;
                     l.sprite.position.set(p.x, p.y + NODE_SIZE * 1.4, p.z);
+                    // Labels follow the highlight state: only nodes that are part
+                    // of the current hover/search set keep their name; the rest
+                    // fade out so the lit set reads clearly.
+                    l.sprite.material.opacity = l.mesh.userData.dimmed ? 0.0 : 0.95;
                 });
             }
 
