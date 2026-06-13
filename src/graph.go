@@ -403,6 +403,28 @@ func buildGraph(vaultDir string) (*Graph, map[string][]string, map[string]string
 	os.WriteFile(filepath.Join(vaultDir, "..", "output", "backlinks.json"), bJSON, 0644)
 	return g, backlinks, pageTitles, nil
 }
+// dedupeEdges collapses parallel edges so each pair of nodes is connected by a single
+// edge in the rendered graph, regardless of direction or how many links exist between
+// them (A→B, B→A, and repeated A→B all become one). Backlinks are computed from the
+// full edge set in buildGraph, so they are unaffected by this.
+func dedupeEdges(edges []GraphEdge) []GraphEdge {
+	seen := make(map[string]struct{}, len(edges))
+	out := make([]GraphEdge, 0, len(edges))
+	for _, e := range edges {
+		a, b := e.Source, e.Target
+		if a > b {
+			a, b = b, a // unordered key so direction doesn't matter
+		}
+		key := a + "\x00" + b
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, e)
+	}
+	return out
+}
+
 func pageIDFromRelPath(relPath string) string {
 	return strings.TrimSuffix(relPath, ".md")
 }

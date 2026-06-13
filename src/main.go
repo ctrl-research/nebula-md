@@ -210,6 +210,17 @@ func run() error {
 		os.WriteFile(filepath.Join(OutputDir, "graph.json"), graphJSON, 0644)
 	}
 
+	// Collapse parallel/bidirectional edges so each node pair shows one connection in
+	// the rendered graph. Done after backlinks are computed (in buildGraph) and after
+	// sibling edges are added, so neither is affected.
+	beforeDedupe := len(graph.Edges)
+	graph.Edges = dedupeEdges(graph.Edges)
+	graphJSON, _ = json.MarshalIndent(graph, "", "  ")
+	if err := os.WriteFile(filepath.Join(OutputDir, "graph.json"), graphJSON, 0644); err != nil {
+		return fmt.Errorf("writing graph.json: %w", err)
+	}
+	fmt.Printf("Graph edges: %d (deduped from %d)\n", len(graph.Edges), beforeDedupe)
+
 	parser := NewMarkdownParser()
 
 	// Walk the vault and generate HTML for each markdown file

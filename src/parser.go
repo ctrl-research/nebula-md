@@ -34,6 +34,9 @@ func (p *MarkdownParser) ProcessFile(filePath, sourceRelPath string) (title stri
 		return "", nil, nil, nil, err
 	}
 
+	// Convert in-page graph directives to a sentinel before anything strips comments.
+	rawContent = protectGraphEmbeds(rawContent)
+
 	// Strip comments first so frontmatter/title extraction ignores comment content
 	contentNoComments := stripObsidianComments(rawContent)
 	title = extractTitle(contentNoComments)
@@ -57,6 +60,14 @@ func (p *MarkdownParser) ProcessFile(filePath, sourceRelPath string) (title stri
 
 	reLink := regexp.MustCompile(`\(([^)]*?\.md)\)`)
 	htmlBody = reLink.ReplaceAll(htmlBody, []byte("($1html)"))
+
+	// Swap any graph-embed sentinel for an iframe pointing at the root graph viewer.
+	// prefix climbs from this page's output location back to the output root.
+	prefix := ""
+	if dir := filepath.ToSlash(filepath.Dir(sourceRelPath)); dir != "." && dir != "" {
+		prefix = strings.Repeat("../", strings.Count(dir, "/")+1)
+	}
+	htmlBody = injectGraphEmbeds(htmlBody, prefix)
 
 	return title, htmlBody, linkTargets, linkHrefs, nil
 }
@@ -96,6 +107,35 @@ func stripObsidianComments(data []byte) []byte {
 	// Match %%...%% content - handles multi-line as well
 	re := regexp.MustCompile(`(?s)%%.*?%%`)
 	return re.ReplaceAll(data, []byte{})
+}
+
+// graphEmbedSentinel is a marker that survives comment-stripping and markdown
+// conversion; injectGraphEmbeds swaps it for the embedded graph iframe afterwards.
+const graphEmbedSentinel = "BASALTGRAPHEMBEDxZ9"
+
+// graphEmbedDirective matches an in-page graph embed written as either an Obsidian
+// comment (%% graph %%) or an HTML comment (<!-- graph -->), case-insensitive.
+var graphEmbedDirective = regexp.MustCompile(`(?i)%%\s*graph\s*%%|<!--\s*graph\s*-->`)
+
+// protectGraphEmbeds replaces graph-embed directives with a plain-text sentinel on its
+// own paragraph, so it isn't eaten by comment-stripping or raw-HTML omission later.
+func protectGraphEmbeds(data []byte) []byte {
+	return graphEmbedDirective.ReplaceAll(data, []byte("\n\n"+graphEmbedSentinel+"\n\n"))
+}
+
+// injectGraphEmbeds swaps the sentinel for an iframe embedding the (chrome-free) nebula
+// graph viewer. prefix is the relative path from the page back to the output root.
+func injectGraphEmbeds(html []byte, prefix string) []byte {
+	if !bytes.Contains(html, []byte(graphEmbedSentinel)) {
+		return html
+	}
+	iframe := `<div class="graph-embed"><iframe src="` + prefix +
+		`graph/nebula.html?embed=1" loading="lazy" title="Knowledge graph" allowfullscreen></iframe></div>`
+	// Goldmark wraps the lone sentinel in its own paragraph; replace that whole block,
+	// then mop up any stray inline occurrences.
+	html = bytes.ReplaceAll(html, []byte("<p>"+graphEmbedSentinel+"</p>"), []byte(iframe))
+	html = bytes.ReplaceAll(html, []byte(graphEmbedSentinel), []byte(iframe))
+	return html
 }
 
 func extractTags(data []byte) []string {

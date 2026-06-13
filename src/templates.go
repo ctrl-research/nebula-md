@@ -227,6 +227,9 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.theme-toggle { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0; font-size: 1.2em; line-height: 1; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
 	.theme-toggle:hover { color: var(--text); }
 	.theme-toggle svg { width: 1em; height: 1em; }
+	/* Embedded graph (via %% graph %% / <!-- graph --> directive in a page) */
+	.graph-embed { width: 100%; height: 480px; margin: 1.5em 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #06060f; }
+	.graph-embed iframe { display: block; width: 100%; height: 100%; border: 0; }
 	`
 
 	return fmt.Sprintf(`<!DOCTYPE html>
@@ -1113,6 +1116,13 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             #mode-toggle button { padding: 9px 13px; font-size: 12px; }
             #tooltip { max-width: 70vw; }
         }
+
+        /* Embed mode (loaded in an iframe via the in-page graph directive): hide all
+           HUD chrome so only the 3D scene shows in the box. Interaction still works. */
+        body.embed #search-container,
+        body.embed #legend,
+        body.embed #mode-toggle,
+        body.embed #controls-hint { display: none !important; }
     </style>
 </head>
 <body>
@@ -1159,6 +1169,11 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
     const THREEOrbitControls = OrbitControls; // alias for legacy THREE.OrbitControls calls
     (function() {
         'use strict';
+        // Embed mode (?embed=1): rendered inside a page via the graph directive — strip
+        // the HUD chrome so the iframe shows only the scene.
+        if (new URLSearchParams(window.location.search).has('embed')) {
+            document.body.classList.add('embed');
+        }
         var graph = {{GRAPH_JSON}};
         // Unlike the 2D graph, nodes are uniform size in 3D — edge-based sizing is omitted here.
         var NODE_SIZE = 1.8;
@@ -1537,7 +1552,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             return tex;
         })();
 
-        var EDGE_SAMPLES = graph.edges.length > 1500 ? 24 : 44;
+        var EDGE_SAMPLES = graph.edges.length > 1500 ? 72 : 132;
         // How many soft haze puffs ride each curve (0 disables haze on huge graphs to
         // keep the sprite/draw-call count sane).
         var HAZE_PUFFS = graph.edges.length > 1500 ? 0 : (graph.edges.length > 600 ? 4 : 7);
@@ -1795,7 +1810,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 if (s === keepId || t === keepId) {
                     eo.mat.opacity = 0.9;
                 } else {
-                    eo.mat.opacity = 0.05;
+                    eo.mat.opacity = 0.18; // dimmed, not hidden — keeps surrounding context
                 }
             });
         }
@@ -1816,7 +1831,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             edgeObjects.forEach(function(eo) {
                 // For a search, only edges between two matches stay bright — an
                 // edge to a dimmed node would otherwise read as a false match.
-                eo.mat.opacity = (ids.has(eo.sourceId) && ids.has(eo.targetId)) ? 0.9 : 0.05;
+                eo.mat.opacity = (ids.has(eo.sourceId) && ids.has(eo.targetId)) ? 0.9 : 0.18;
             });
         }
 
@@ -2013,7 +2028,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                     // Labels follow the highlight state: only nodes that are part
                     // of the current hover/search set keep their name; the rest
                     // fade out so the lit set reads clearly.
-                    l.sprite.material.opacity = l.mesh.userData.dimmed ? 0.0 : 0.95;
+                    l.sprite.material.opacity = l.mesh.userData.dimmed ? 0.22 : 0.95;
                 });
             }
 
