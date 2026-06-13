@@ -1089,9 +1089,9 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 font-size: 10px;
                 line-height: 1.4;
             }
-            /* Legend becomes a compact horizontal strip just above the toggle. */
+            /* Legend becomes a compact horizontal strip above the (wrapping) toggle. */
             #legend {
-                top: auto; bottom: 58px; left: 12px; right: 12px;
+                top: auto; bottom: 96px; left: 12px; right: 12px;
                 min-width: 0;
                 padding: 8px 12px;
                 display: flex; flex-wrap: wrap;
@@ -1108,6 +1108,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             #mode-toggle {
                 bottom: 12px; left: 12px; right: 12px;
                 justify-content: center;
+                flex-wrap: wrap;
             }
             #mode-toggle button { padding: 9px 13px; font-size: 12px; }
             #tooltip { max-width: 70vw; }
@@ -1135,6 +1136,9 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         <div id="controls-hint">Drag to rotate · Scroll to zoom · Click to navigate</div>
         <div id="mode-toggle">
             <button id="btn-labels" onclick="toggleLabels()">Labels: Off</button>
+            <button id="btn-lines" onclick="toggleLines()">Lines: Off</button>
+            <button class="active" id="btn-curve" onclick="toggleCurve()">Edges: Curved</button>
+            <button class="active" id="btn-haze" onclick="toggleHaze()">Haze: On</button>
             <button class="active" id="btn-spin" onclick="toggleSpin()">Spin: On</button>
             <button class="active" id="btn-3d" onclick="setCameraMode('3d')">3D</button>
             <button id="btn-2d" onclick="setCameraMode('2d')">2D</button>
@@ -1197,9 +1201,17 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setClearColor(0x06060f, 1);
+        // Filmic tone mapping compresses bright additive overlaps (stacked glows, clouds,
+        // edge haze) toward a soft white rolloff instead of blowing out linearly. It
+        // self-regulates as a vault grows denser. Exposure is the master brightness dial.
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.9;
         container.appendChild(renderer.domElement);
 
         var scene = new THREE.Scene();
+        // Exponential depth fog — distant nodes/edges/stars melt into the deep-space
+        // background instead of sitting on one flat plane. Matches the clear color.
+        scene.fog = new THREE.FogExp2(0x06060f, 0.0008);
         var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
         camera.position.set(0, 0, 120);
 
@@ -1242,6 +1254,44 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             btn.textContent = spinEnabled ? 'Spin: On' : 'Spin: Off';
         };
 
+        // ---- Edge style toggles (consumed by updateEdgePoints below) ----
+        // Render style (flowing stars vs. plain lines), cloud haze, and curved vs. straight.
+        var linesMode = false; // false → flowing stars, true → plain lines
+        var hazeEnabled = true;
+        // Applies the current style flags to every edge's objects (called by the toggles).
+        function applyEdgeVisibility() {
+            edgeObjects.forEach(function(eo) {
+                eo.line.visible = !linesMode;                       // flowing star stream
+                if (eo.plainLine) eo.plainLine.visible = linesMode; // plain line
+                if (eo.haze) eo.haze.forEach(function(p) { p.visible = hazeEnabled && !linesMode; });
+            });
+            // Populate line geometry immediately so it doesn't flash at the origin for
+            // one frame before the animate loop fills it in.
+            if (linesMode) edgeObjects.forEach(function(eo) { updateEdgePoints(eo, 0); });
+        }
+        window.toggleLines = function() {
+            linesMode = !linesMode;
+            var btn = document.getElementById('btn-lines');
+            btn.classList.toggle('active', linesMode);
+            btn.textContent = linesMode ? 'Lines: On' : 'Lines: Off';
+            applyEdgeVisibility();
+        };
+        window.toggleHaze = function() {
+            hazeEnabled = !hazeEnabled;
+            var btn = document.getElementById('btn-haze');
+            btn.classList.toggle('active', hazeEnabled);
+            btn.textContent = hazeEnabled ? 'Haze: On' : 'Haze: Off';
+            applyEdgeVisibility();
+        };
+        var curveAmount = 0.18; // 0 → straight edges
+        window.toggleCurve = function() {
+            curveAmount = curveAmount > 0 ? 0 : 0.18;
+            var curved = curveAmount > 0;
+            var btn = document.getElementById('btn-curve');
+            btn.classList.toggle('active', curved);
+            btn.textContent = curved ? 'Edges: Curved' : 'Edges: Straight';
+        };
+
         // ---- View mode (3D nebula vs classic 2D graph) ----
         window.setCameraMode = function(mode) {
             if (mode === '2d') window.location.href = 'index.html';
@@ -1273,7 +1323,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             ctx.fillText(text, 8, canvas.height / 2);
             var tex = new THREE.CanvasTexture(canvas);
             tex.minFilter = THREE.LinearFilter;
-            var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+            var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false });
             var sprite = new THREE.Sprite(mat);
             var scale = 0.08; // world units per canvas px (~legend font size on screen)
             sprite.scale.set(canvas.width * scale, canvas.height * scale, 1);
@@ -1296,16 +1346,80 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             labelSprites.forEach(function(l) { l.sprite.visible = labelsEnabled; });
         };
 
-        // ---- Starfield background ----
-        var starGeo = new THREE.BufferGeometry();
-        var starCount = 1500;
-        var starPos = new Float32Array(starCount * 3);
-        for (var si = 0; si < starCount * 3; si++) {
-            starPos[si] = (Math.random() - 0.5) * 2000;
+        // ---- Drifting nebula clouds (fake volumetric gas) ----
+        // Soft additive radial-gradient billboards scattered in the background give
+        // the scene its "nebula" haze. They slowly spin and bob in the animate loop.
+        function makeCloudTexture(r, g, b) {
+            var size = 256;
+            var c = document.createElement('canvas');
+            c.width = c.height = size;
+            var ctx = c.getContext('2d');
+            var grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+            grad.addColorStop(0.0, 'rgba(' + r + ',' + g + ',' + b + ',0.55)');
+            grad.addColorStop(0.4, 'rgba(' + r + ',' + g + ',' + b + ',0.16)');
+            grad.addColorStop(1.0, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, size, size);
+            var tex = new THREE.CanvasTexture(c);
+            tex.minFilter = THREE.LinearFilter;
+            return tex;
         }
-        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-        var starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.4 });
-        scene.add(new THREE.Points(starGeo, starMat));
+        // Nebula palette: deep blue, teal, violet, magenta, indigo.
+        var cloudPalette = [[42, 74, 138], [26, 106, 122], [106, 42, 138], [138, 42, 90], [40, 60, 120]];
+        var cloudTextures = cloudPalette.map(function(c) { return makeCloudTexture(c[0], c[1], c[2]); });
+        var clouds = []; // { sprite, spin, drift, phase, basePos }
+        for (var ci = 0; ci < 6; ci++) {
+            var cloudMat = new THREE.SpriteMaterial({
+                map: cloudTextures[ci % cloudTextures.length],
+                transparent: true, opacity: 0.1,
+                blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            var cloudSprite = new THREE.Sprite(cloudMat);
+            cloudSprite.raycast = function() {};
+            var cTheta = Math.random() * Math.PI * 2;
+            var cPhi = Math.acos(2 * Math.random() - 1);
+            var cRad = 350 + Math.random() * 350;
+            var cBase = new THREE.Vector3(
+                cRad * Math.sin(cPhi) * Math.cos(cTheta),
+                cRad * Math.sin(cPhi) * Math.sin(cTheta) * 0.6, // flatten vertically for a disk-ish feel
+                cRad * Math.cos(cPhi)
+            );
+            cloudSprite.position.copy(cBase);
+            var cScale = 300 + Math.random() * 350;
+            cloudSprite.scale.set(cScale, cScale, 1);
+            cloudMat.rotation = Math.random() * Math.PI * 2;
+            scene.add(cloudSprite);
+            clouds.push({
+                sprite: cloudSprite,
+                spin: (Math.random() - 0.5) * 0.03,
+                drift: 0.1 + Math.random() * 0.2,
+                phase: Math.random() * Math.PI * 2,
+                basePos: cBase
+            });
+        }
+
+        // ---- Layered starfield (depth + size variety + twinkle) ----
+        function makeStarLayer(count, spread, size, opacity, tint) {
+            var geo = new THREE.BufferGeometry();
+            var pos = new Float32Array(count * 3);
+            for (var i = 0; i < count * 3; i++) pos[i] = (Math.random() - 0.5) * spread;
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            var mat = new THREE.PointsMaterial({
+                color: tint, size: size, opacity: opacity,
+                transparent: true, sizeAttenuation: true,
+                blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            var pts = new THREE.Points(geo, mat);
+            scene.add(pts);
+            return mat;
+        }
+        // Three depth layers, each twinkling at its own rate/phase: distant blue dust,
+        // a white mid-field, and a few large warm foreground stars.
+        var starLayers = [
+            { mat: makeStarLayer(1200, 2600, 1.2, 0.35, 0x99aaff), base: 0.35, speed: 0.7, amp: 0.10, phase: 0.0 },
+            { mat: makeStarLayer(700, 1900, 2.2, 0.55, 0xffffff), base: 0.55, speed: 1.1, amp: 0.15, phase: 1.7 },
+            { mat: makeStarLayer(250, 1500, 3.6, 0.75, 0xfff2d0), base: 0.75, speed: 1.7, amp: 0.20, phase: 3.1 }
+        ];
 
         // ---- Node meshes ----
         var nodeMap = {}; // id -> { mesh, glow, data }
@@ -1324,27 +1438,32 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             var mesh = new THREE.Mesh(nodeGeo, mat);
             mesh.scale.setScalar(size);
 
-            // Outer glow (slightly larger, transparent)
+            // Outer glow (slightly larger, transparent). Additive blending makes
+            // overlapping auras sum into bright bloom — the nebula/star-cluster look.
             var glowMat = new THREE.MeshBasicMaterial({
                 color: baseColor,
                 transparent: true,
-                opacity: 0.15,
-                side: THREE.BackSide
+                opacity: 0.28,
+                side: THREE.BackSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
             });
             // Child of the node mesh, so scale here is relative to the core star.
             var glow = new THREE.Mesh(glowGeo, glowMat);
-            glow.scale.setScalar(1.15);
+            glow.scale.setScalar(2.0);
             mesh.add(glow);
 
             // Even larger dim glow for halo
             var haloMat = new THREE.MeshBasicMaterial({
                 color: baseColor,
                 transparent: true,
-                opacity: 0.05,
-                side: THREE.BackSide
+                opacity: 0.12,
+                side: THREE.BackSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
             });
             var halo = new THREE.Mesh(glowGeo, haloMat);
-            halo.scale.setScalar(1.3);
+            halo.scale.setScalar(3.4);
             mesh.add(halo);
 
             // Glow/halo are purely visual — exclude them from raycasting so hover
@@ -1356,8 +1475,8 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             if (n.stub) {
                 mat = new THREE.MeshBasicMaterial({ color: 0xe67e22, transparent: true, opacity: 0.7, wireframe: true });
                 mesh.material = mat;
-                glow.material = new THREE.MeshBasicMaterial({ color: 0xe67e22, transparent: true, opacity: 0.1, side: THREE.BackSide });
-                halo.material = new THREE.MeshBasicMaterial({ color: 0xe67e22, transparent: true, opacity: 0.05, side: THREE.BackSide });
+                glow.material = new THREE.MeshBasicMaterial({ color: 0xe67e22, transparent: true, opacity: 0.12, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false });
+                halo.material = new THREE.MeshBasicMaterial({ color: 0xe67e22, transparent: true, opacity: 0.06, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false });
             }
 
             // Random position in sphere
@@ -1377,8 +1496,157 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
 
         document.getElementById('node-count-num').textContent = graph.nodes.length;
 
-        // ---- Edge meshes ----
-        var edgeObjects = []; // { line, sourceId, targetId }
+        // ---- Edges as flowing streams of stars ----
+        // Each edge is a dense run of tiny soft motes that stream along a gently curved,
+        // wandering path from source to target — so a connection reads as a hazy galactic
+        // current rather than a hard vector. Per-edge material.opacity still drives the
+        // hover/search dimming.
+
+        // Soft round mote texture: a radial gradient so each point is a fuzzy glow ("fog")
+        // instead of a hard square. Shared across all edges.
+        var dotTexture = (function() {
+            var sz = 64;
+            var c = document.createElement('canvas');
+            c.width = c.height = sz;
+            var ctx = c.getContext('2d');
+            var g = ctx.createRadialGradient(sz / 2, sz / 2, 0, sz / 2, sz / 2, sz / 2);
+            g.addColorStop(0.0, 'rgba(255,255,255,1)');
+            g.addColorStop(0.4, 'rgba(255,255,255,0.35)');
+            g.addColorStop(1.0, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, sz, sz);
+            var tex = new THREE.CanvasTexture(c);
+            tex.minFilter = THREE.LinearFilter;
+            return tex;
+        })();
+
+        // Softer, wider gradient for the path haze — a gentle cloud, not a crisp dot.
+        var hazeTexture = (function() {
+            var sz = 128;
+            var c = document.createElement('canvas');
+            c.width = c.height = sz;
+            var ctx = c.getContext('2d');
+            var g = ctx.createRadialGradient(sz / 2, sz / 2, 0, sz / 2, sz / 2, sz / 2);
+            g.addColorStop(0.0, 'rgba(255,255,255,0.6)');
+            g.addColorStop(0.35, 'rgba(255,255,255,0.22)');
+            g.addColorStop(1.0, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, sz, sz);
+            var tex = new THREE.CanvasTexture(c);
+            tex.minFilter = THREE.LinearFilter;
+            return tex;
+        })();
+
+        var EDGE_SAMPLES = graph.edges.length > 1500 ? 24 : 44;
+        // How many soft haze puffs ride each curve (0 disables haze on huge graphs to
+        // keep the sprite/draw-call count sane).
+        var HAZE_PUFFS = graph.edges.length > 1500 ? 0 : (graph.edges.length > 600 ? 4 : 7);
+        // Re-samples an edge's point buffer every frame. Stars flow along a quadratic
+        // Bézier arc (curved, not straight), jitter perpendicular to it (wandering, not a
+        // clean path), and wrap seamlessly by fading in at the source / out at the target.
+        function updateEdgePoints(eo, time) {
+            var sMesh = nodeMap[eo.sourceId];
+            var tMesh = nodeMap[eo.targetId];
+            if (!sMesh || !tMesh) return;
+            var s = sMesh.position, t = tMesh.position;
+            var pos = eo.line.geometry.attributes.position;
+            var col = eo.line.geometry.attributes.color;
+            var base = eo.color, vary = eo.vary, n = eo.samples;
+
+            // Edge direction + length.
+            var dx = t.x - s.x, dy = t.y - s.y, dz = t.z - s.z;
+            var len = Math.sqrt(dx * dx + dy * dy + dz * dz) + 1e-4;
+            var ux = dx / len, uy = dy / len, uz = dz / len;
+
+            // First perpendicular axis: the per-edge bend vector projected off the
+            // direction. (Falls back to a world axis if it happens to be parallel.)
+            var bnd = eo.bend;
+            var d = bnd.x * ux + bnd.y * uy + bnd.z * uz;
+            var px = bnd.x - ux * d, py = bnd.y - uy * d, pz = bnd.z - uz * d;
+            var pl = Math.sqrt(px * px + py * py + pz * pz);
+            if (pl < 1e-3) { px = uy; py = -ux; pz = 0; pl = Math.sqrt(px * px + py * py) + 1e-4; }
+            px /= pl; py /= pl; pz /= pl;
+            // Second perpendicular axis = dir × p (both unit, so result is unit).
+            var qx = uy * pz - uz * py, qy = uz * px - ux * pz, qz = ux * py - uy * px;
+
+            // Bézier control point: midpoint pushed out along the bend axis → a curved arc.
+            // curveAmount of 0 collapses the control point onto the midpoint = straight.
+            var bend = len * curveAmount;
+            var cx = (s.x + t.x) * 0.5 + px * bend;
+            var cy = (s.y + t.y) * 0.5 + py * bend;
+            var cz = (s.z + t.z) * 0.5 + pz * bend;
+
+            // Plain-line mode: sample the smooth Bézier into the line geometry (no flow,
+            // no wander) and skip the star/haze work entirely.
+            if (linesMode) {
+                var lpos = eo.plainLine.geometry.attributes.position;
+                var segs = eo.lineSegs;
+                for (var li = 0; li <= segs; li++) {
+                    var lf = li / segs;
+                    var lo = 1 - lf;
+                    lpos.setXYZ(li,
+                        lo * lo * s.x + 2 * lo * lf * cx + lf * lf * t.x,
+                        lo * lo * s.y + 2 * lo * lf * cy + lf * lf * t.y,
+                        lo * lo * s.z + 2 * lo * lf * cz + lf * lf * t.z);
+                }
+                lpos.needsUpdate = true;
+                eo.plainMat.opacity = Math.min(0.7, eo.mat.opacity); // tracks hover/search dimming
+                return;
+            }
+
+            var phase = time * eo.speed + eo.flowOffset;
+            var amp = Math.min(len * 0.01, 1.2); // wander amplitude — tight so the stream stays a thin filament
+
+            for (var i = 0; i < n; i++) {
+                // Evenly spaced in [0,1) and advancing with time → a moving stream,
+                // clamped clear of the node cores.
+                var frac = ((i / n) + phase) % 1;
+                var f = 0.08 + 0.84 * frac;
+                var omf = 1 - f;
+                // Quadratic Bézier point along the arc.
+                var bx = omf * omf * s.x + 2 * omf * f * cx + f * f * t.x;
+                var by = omf * omf * s.y + 2 * omf * f * cy + f * f * t.y;
+                var bz = omf * omf * s.z + 2 * omf * f * cz + f * f * t.z;
+                // Per-star perpendicular wander so the path shimmers rather than tracks
+                // a clean line. Two out-of-phase sines on the perpendicular basis.
+                var w1 = Math.sin(frac * 12.566 + time * 1.3 + i * 1.7);
+                var w2 = Math.cos(frac * 9.425 + time * 1.1 + i * 2.3);
+                var wa = amp * (0.5 + 0.5 * vary[i]);
+                bx += (px * w1 + qx * w2) * wa;
+                by += (py * w1 + qy * w2) * wa;
+                bz += (pz * w1 + qz * w2) * wa;
+                pos.setXYZ(i, bx, by, bz);
+                // Smoothstep fade in over the first 15% and out over the last 15%.
+                var a = frac / 0.15; if (a > 1) a = 1; a = a * a * (3 - 2 * a);
+                var bb = (1 - frac) / 0.15; if (bb > 1) bb = 1; if (bb < 0) bb = 0; bb = bb * bb * (3 - 2 * bb);
+                var env = a * bb * vary[i];
+                col.setXYZ(i, base.r * env, base.g * env, base.b * env);
+            }
+            pos.needsUpdate = true;
+            col.needsUpdate = true;
+
+            // Cloud haze: a chain of soft billboards riding the smooth curve, so the
+            // edge reads as a glowing filament with the stars streaming through it.
+            var haze = eo.haze;
+            if (haze && hazeEnabled) {
+                var hn = haze.length;
+                var hscale = (len / hn) * 1.4; // overlap neighbours into a thin continuous band
+                for (var k = 0; k < hn; k++) {
+                    var hf = 0.08 + 0.84 * ((k + 0.5) / hn);
+                    var ho = 1 - hf;
+                    haze[k].position.set(
+                        ho * ho * s.x + 2 * ho * hf * cx + hf * hf * t.x,
+                        ho * ho * s.y + 2 * ho * hf * cy + hf * hf * t.y,
+                        ho * ho * s.z + 2 * ho * hf * cz + hf * hf * t.z
+                    );
+                    haze[k].scale.set(hscale, hscale, 1);
+                }
+                // Haze tracks the stream's brightness so hover/search dimming carries over.
+                eo.hazeMat.opacity = eo.mat.opacity * 0.12;
+            }
+        }
+
+        var edgeObjects = []; // { line, sourceId, targetId, mat, samples, color, vary, bend, speed, flowOffset }
         graph.edges.forEach(function(e) {
             var sid = typeof e.source === 'object' ? e.source.id : e.source;
             var tid = typeof e.target === 'object' ? e.target.id : e.target;
@@ -1387,13 +1655,71 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             if (!sMesh || !tMesh) return;
 
             var hue = hashToHue(sid);
-            var lineColor = new THREE.Color().setHSL(hue / 360, 0.4, 0.5);
-            var points = [sMesh.position.clone(), tMesh.position.clone()];
-            var geo = new THREE.BufferGeometry().setFromPoints(points);
-            var mat = new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: 0.4 });
-            var line = new THREE.Line(geo, mat);
+            var col = new THREE.Color().setHSL(hue / 360, 0.6, 0.82);
+            var n = EDGE_SAMPLES;
+            // Per-star luminosity variance so the stream looks like distinct stars,
+            // not a uniform dotted line. Baked once; the fade envelope is per-frame.
+            var vary = new Float32Array(n);
+            for (var i = 0; i < n; i++) vary[i] = 0.7 + 0.3 * Math.random();
+            // Per-edge bend direction → each arc curves a different way.
+            var bend = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
+            if (bend.lengthSq() < 1e-6) bend.set(0, 1, 0);
+            bend.normalize();
+            var geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+            // Screen-space sizing (sizeAttenuation:false): a small fixed pixel size so
+            // motes stay visible at any zoom — world-space sizing this small renders
+            // sub-pixel and vanishes.
+            var mat = new THREE.PointsMaterial({
+                size: 2.2, map: dotTexture, vertexColors: true, transparent: true, opacity: 0.8,
+                sizeAttenuation: false, blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            var line = new THREE.Points(geo, mat);
+            // Positions are rewritten every frame without recomputing the bounding
+            // sphere, so disable frustum culling to keep the stream from being dropped.
+            line.frustumCulled = false;
             scene.add(line);
-            edgeObjects.push({ line, sourceId: sid, targetId: tid, mat });
+
+            // Soft cloud haze riding the curve (a glowing filament around the stream).
+            var haze = null, hazeMat = null;
+            if (HAZE_PUFFS > 0) {
+                // Normal (not additive) blending so overlapping puffs composite toward
+                // the haze colour and can never sum past it → no white blow-out at hubs.
+                hazeMat = new THREE.SpriteMaterial({
+                    map: hazeTexture, color: col, transparent: true, opacity: 0.2,
+                    blending: THREE.NormalBlending, depthWrite: false
+                });
+                haze = [];
+                for (var h = 0; h < HAZE_PUFFS; h++) {
+                    var puff = new THREE.Sprite(hazeMat);
+                    puff.raycast = function() {};
+                    puff.frustumCulled = false;
+                    scene.add(puff);
+                    haze.push(puff);
+                }
+            }
+
+            // Plain-line alternative (hidden by default; shown via the Lines toggle).
+            // Multi-segment so it follows the same curve/straight setting as the stream.
+            var LINE_SEG = 12;
+            var lgeo = new THREE.BufferGeometry();
+            lgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((LINE_SEG + 1) * 3), 3));
+            var plainMat = new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.5, depthWrite: false });
+            var plainLine = new THREE.Line(lgeo, plainMat);
+            plainLine.frustumCulled = false;
+            plainLine.visible = false;
+            scene.add(plainLine);
+
+            var eo = {
+                line: line, sourceId: sid, targetId: tid, mat: mat, samples: n,
+                color: col, vary: vary, bend: bend, haze: haze, hazeMat: hazeMat,
+                plainLine: plainLine, plainMat: plainMat, lineSegs: LINE_SEG,
+                speed: 0.05 + Math.random() * 0.05, // fraction of the link per second
+                flowOffset: Math.random()
+            };
+            updateEdgePoints(eo, 0);
+            edgeObjects.push(eo);
         });
         document.getElementById('edge-count-num').textContent = edgeObjects.length;
 
@@ -1467,9 +1793,9 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             edgeObjects.forEach(function(eo) {
                 var s = eo.sourceId, t = eo.targetId;
                 if (s === keepId || t === keepId) {
-                    eo.mat.opacity = 0.75;
+                    eo.mat.opacity = 0.9;
                 } else {
-                    eo.mat.opacity = 0.06;
+                    eo.mat.opacity = 0.05;
                 }
             });
         }
@@ -1490,7 +1816,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             edgeObjects.forEach(function(eo) {
                 // For a search, only edges between two matches stay bright — an
                 // edge to a dimmed node would otherwise read as a false match.
-                eo.mat.opacity = (ids.has(eo.sourceId) && ids.has(eo.targetId)) ? 0.7 : 0.06;
+                eo.mat.opacity = (ids.has(eo.sourceId) && ids.has(eo.targetId)) ? 0.9 : 0.05;
             });
         }
 
@@ -1500,7 +1826,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 m.material.opacity = m.userData.stub ? 0.7 : 1.0;
                 m.userData.dimmed = false;
             });
-            edgeObjects.forEach(function(eo) { eo.mat.opacity = 0.4; });
+            edgeObjects.forEach(function(eo) { eo.mat.opacity = 0.8; });
         }
 
         // Active search matches persist as the baseline highlight when not hovering.
@@ -1651,16 +1977,6 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 nodeMeshes[k].position.copy(positions[k]);
             }
 
-            // Update edge geometry
-            edgeObjects.forEach(function(eo) {
-                var sMesh = nodeMap[eo.sourceId];
-                var tMesh = nodeMap[eo.targetId];
-                if (!sMesh || !tMesh) return;
-                var pos = eo.line.geometry.attributes.position;
-                pos.setXYZ(0, sMesh.position.x, sMesh.position.y, sMesh.position.z);
-                pos.setXYZ(1, tMesh.position.x, tMesh.position.y, tMesh.position.z);
-                pos.needsUpdate = true;
-            });
         }
 
         // ---- Animation loop ----
@@ -1672,6 +1988,23 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
 
             // Hovering a node freezes the layout so it's easy to read/click.
             if (!hoveredNode) simulate(dt);
+
+            var t = time * 0.001; // seconds, for ambient animation
+
+            // Twinkle: each star layer breathes opacity at its own rate/phase.
+            starLayers.forEach(function(L) {
+                L.mat.opacity = Math.max(0, L.base + L.amp * Math.sin(t * L.speed + L.phase));
+            });
+
+            // Drifting nebula clouds: slow spin plus a gentle vertical bob.
+            clouds.forEach(function(c) {
+                c.sprite.material.rotation += c.spin * dt;
+                c.sprite.position.y = c.basePos.y + Math.sin(t * c.drift + c.phase) * 12;
+            });
+
+            // Stream the stars along every edge (continues even when the layout is
+            // frozen on hover, so connections always feel alive).
+            edgeObjects.forEach(function(eo) { updateEdgePoints(eo, t); });
 
             if (labelsEnabled) {
                 labelSprites.forEach(function(l) {
