@@ -1616,7 +1616,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 // Evenly spaced in [0,1) and advancing with time → a moving stream,
                 // clamped clear of the node cores.
                 var frac = ((i / n) + phase) % 1;
-                var f = 0.08 + 0.84 * frac;
+                var f = frac; // full arc, node center to node center
                 var omf = 1 - f;
                 // Quadratic Bézier point along the arc.
                 var bx = omf * omf * s.x + 2 * omf * f * cx + f * f * t.x;
@@ -1631,9 +1631,11 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 by += (py * w1 + qy * w2) * wa;
                 bz += (pz * w1 + qz * w2) * wa;
                 pos.setXYZ(i, bx, by, bz);
-                // Smoothstep fade in over the first 15% and out over the last 15%.
+                // Smoothstep fade in over the first 15%, out over the last 8% — the shorter
+                // tail keeps the stream bright closer to the target so it doesn't read as
+                // disconnecting early (stars move toward the target, so the gap is noticed there).
                 var a = frac / 0.15; if (a > 1) a = 1; a = a * a * (3 - 2 * a);
-                var bb = (1 - frac) / 0.15; if (bb > 1) bb = 1; if (bb < 0) bb = 0; bb = bb * bb * (3 - 2 * bb);
+                var bb = (1 - frac) / 0.08; if (bb > 1) bb = 1; if (bb < 0) bb = 0; bb = bb * bb * (3 - 2 * bb);
                 var env = a * bb * vary[i];
                 col.setXYZ(i, base.r * env, base.g * env, base.b * env);
             }
@@ -1647,7 +1649,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 var hn = haze.length;
                 var hscale = (len / hn) * 1.4; // overlap neighbours into a thin continuous band
                 for (var k = 0; k < hn; k++) {
-                    var hf = 0.08 + 0.84 * ((k + 0.5) / hn);
+                    var hf = (k + 0.5) / hn; // match the stars' full-arc reach
                     var ho = 1 - hf;
                     haze[k].position.set(
                         ho * ho * s.x + 2 * ho * hf * cx + hf * hf * t.x,
