@@ -33,6 +33,11 @@ func getOutputDir() string {
 // ignoredDirs holds directory names to skip during vault walks
 var ignoredDirs []string
 
+// linkExt is appended to internal page links/paths. Empty when clean URLs are
+// enabled (BASALT_CLEAN_URLS, the default); ".html" otherwise. Files on disk are
+// always written with a .html extension regardless of this setting.
+var linkExt = ".html"
+
 func isIgnored(path string) bool {
 	parts := strings.Split(filepath.ToSlash(path), "/")
 	for _, part := range parts {
@@ -62,12 +67,13 @@ type SiteConfig struct {
 	ShowLinks            bool      // show links/backlinks sidebar section
 	FeatureAutoFolderMOC bool      // auto-add sibling links to folder index pages
 	GraphMode             GraphMode // "2d" (default) or "nebula" (3D galaxy)
+	CleanURLs            bool      // emit extensionless internal links (requires host that serves /foo as foo.html, e.g. GitHub Pages)
 }
 
 // readConfig reads site configuration from .env and environment variables.
 // Environment variables (BASALT_SITE_NAME, BASALT_SITE_THEME) override .env file values.
 func readConfig() SiteConfig {
-	cfg := SiteConfig{SiteName: "Basalt", SiteTheme: "dark", GraphNodeSizeByEdges: true, GraphMode: GraphMode2D}
+	cfg := SiteConfig{SiteName: "Basalt", SiteTheme: "dark", GraphNodeSizeByEdges: true, GraphMode: GraphMode2D, CleanURLs: true}
 	for _, envPath := range []string{".env", "../.env", "../../.env"} {
 		if _, err := os.Stat(envPath); err == nil {
 			if data, err := os.ReadFile(envPath); err == nil {
@@ -99,6 +105,8 @@ func readConfig() SiteConfig {
 						cfg.FeatureAutoFolderMOC = val == "true" || val == "1" || val == "yes"
 					} else if key == "BASALT_GRAPH_MODE" && (val == "2d" || val == "nebula") {
 						cfg.GraphMode = GraphMode(val)
+					} else if key == "BASALT_CLEAN_URLS" {
+						cfg.CleanURLs = !(val == "false" || val == "0" || val == "no")
 					}
 				}
 			}
@@ -135,6 +143,9 @@ func readConfig() SiteConfig {
 	} else if v == "2d" {
 		cfg.GraphMode = GraphMode2D
 	}
+	if v := os.Getenv("BASALT_CLEAN_URLS"); v != "" {
+		cfg.CleanURLs = !(v == "false" || v == "0" || v == "no")
+	}
 	// Leave GraphMode unchanged if env var is not set (preserve .env value)
 	return cfg
 }
@@ -162,8 +173,11 @@ func run() error {
 	fmt.Println("Building Basalt Site...")
 
 	siteCfg := readConfig()
-	fmt.Printf("Config: site_name=%q theme=%q\n", siteCfg.SiteName, siteCfg.SiteTheme)
+	fmt.Printf("Config: site_name=%q theme=%q clean_urls=%v\n", siteCfg.SiteName, siteCfg.SiteTheme, siteCfg.CleanURLs)
 	ignoredDirs = siteCfg.IgnoredDirs
+	if siteCfg.CleanURLs {
+		linkExt = ""
+	}
 
 	// Build full vault graph (computes all pages, edges, writes backlinks.json)
 	graph, _, pageTitles, err := buildGraph(SourceDir)
@@ -255,7 +269,7 @@ func run() error {
 
 		// Build per-page graph data
 		pageGraph := buildPageGraph(pageID, linkTargets, linkHrefs, backlinksMap, existingPages, pageTitles, folderSiblings, tags)
-		pageGraph.CurrentHref = pageID + ".html"
+		pageGraph.CurrentHref = pageID + linkExt
 		pageGraph.TableOfContents = extractTOC(htmlBody)
 		pageGraph.Date = date
 		pageGraph.ReadingTime = readingTime
@@ -346,9 +360,9 @@ func buildPageGraph(pageID string, linkTargets []string, linkHrefs []string, bac
 
 	// Build Links — use linkHrefs (computed relative hrefs) not bare target paths
 	for i, target := range linkTargets {
-		href := target + ".html" // fallback
+		href := target + linkExt // fallback
 		if i < len(linkHrefs) {
-			href = linkHrefs[i] + ".html"
+			href = linkHrefs[i] + linkExt
 		}
 		title := toHTMLName(target)
 		if t, ok := pageTitles[target]; ok && t != "" {

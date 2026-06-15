@@ -104,7 +104,7 @@ func buildSearchIndex(vaultDir string) []SearchEntry {
 		}
 		entries = append(entries, SearchEntry{
 			Title:   title,
-			Path:    pageID + ".html",
+			Path:    pageID + linkExt,
 			Content: text,
 			Tags:    tags,
 		})
@@ -168,7 +168,7 @@ func extractWikiLinks(content []byte, sourceRelPath string) ([]byte, []string, [
 		if len(m) >= 3 && len(m[2]) > 0 {
 			linkDisp = display
 		}
-		return []byte("[" + linkDisp + "](" + rel + ".html)")
+		return []byte("[" + linkDisp + "](" + rel + linkExt + ")")
 	})
 	return result, targets, rels
 }
@@ -178,9 +178,9 @@ func computeRelHref(sourcePageID, targetPageID string) string {
 	sourceDir := filepath.Dir(sourcePageID)
 	rel, err := filepath.Rel(sourceDir, targetPageID)
 	if err != nil {
-		return targetPageID + ".html"
+		return targetPageID + linkExt
 	}
-	return rel + ".html"
+	return rel + linkExt
 }
 
 // buildNavTree walks the vault and builds a hierarchical nav tree.
@@ -226,14 +226,14 @@ func buildNavTree(vaultDir string) []*NavNode {
 				if isIndexForParent {
 					// This page IS the index of cur (the parent folder)
 					// Mark the parent folder with indexHref, don't create a separate child node
-					cur.indexHref = e.pageID + ".html"
+					cur.indexHref = e.pageID + linkExt
 					// Use the index page's title as the folder name
 					cur.name = e.title
 				} else {
 					child := &tn{
 						name:      e.title,
 						path:      e.pageID,
-						href:      e.pageID + ".html",
+						href:      e.pageID + linkExt,
 						indexHref: "",
 						children:  map[string]*tn{},
 					}
@@ -246,7 +246,7 @@ func buildNavTree(vaultDir string) []*NavNode {
 				}
 			} else if isLast && isIndexForParent {
 				// Folder already existed; mark its indexHref and use index title as folder name
-				cur.indexHref = e.pageID + ".html"
+				cur.indexHref = e.pageID + linkExt
 				cur.name = e.title
 			}
 			if !isIndexForParent {
@@ -374,7 +374,7 @@ func buildGraph(vaultDir string) (*Graph, map[string][]string, map[string]string
 			}
 		}
 		g.Nodes = append(g.Nodes, GraphNode{
-			ID: id, Title: title, Path: id + ".html", Stub: false, Tags: pageTags[id],
+			ID: id, Title: title, Path: id + linkExt, Stub: false, Tags: pageTags[id],
 		})
 		added[id] = true
 	}
@@ -389,7 +389,7 @@ func buildGraph(vaultDir string) (*Graph, map[string][]string, map[string]string
 				}
 			}
 			g.Nodes = append(g.Nodes, GraphNode{
-				ID: e.Target, Title: title, Path: e.Target + ".html", Stub: true,
+				ID: e.Target, Title: title, Path: e.Target + linkExt, Stub: true,
 			})
 			added[e.Target] = true
 		}

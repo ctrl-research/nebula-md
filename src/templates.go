@@ -805,7 +805,7 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         <div><span class="legend-stub"></span>Stub (dead link)</div>
     </div>
     <div id="mode-toggle">
-        <a href="nebula.html">3D</a>
+        <a href="nebula{{EXT}}">3D</a>
         <span class="current">2D</span>
     </div>
     <div id="graph"></div>
@@ -909,6 +909,7 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
 </body>
 </html>`
 	data := fmt.Sprintf(html, siteTheme, siteName, graphJSON, nodeSizeByEdges)
+	data = strings.Replace(data, "{{EXT}}", linkExt, 1)
 	err := os.WriteFile(filepath.Join(graphDir, "index.html"), []byte(data), 0644)
 	if err != nil {
 		fmt.Printf("Error writing graph index.html: %v\n", err)
@@ -1309,7 +1310,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
 
         // ---- View mode (3D nebula vs classic 2D graph) ----
         window.setCameraMode = function(mode) {
-            if (mode === '2d') window.location.href = 'index.html';
+            if (mode === '2d') window.location.href = 'index{{EXT}}';
         };
 
         // ---- Touch detection (coarse pointer = phones/tablets) ----
@@ -2064,6 +2065,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
 </body>
 </html>`
 		data := strings.Replace(nebulaHTML, "{{GRAPH_JSON}}", string(graphJSON), 1)
+		data = strings.Replace(data, "{{EXT}}", linkExt, 1)
 		err := os.WriteFile(filepath.Join(graphDir, "nebula.html"), []byte(data), 0644)
 		if err != nil {
 			fmt.Printf("Error writing graph nebula.html: %v\n", err)
