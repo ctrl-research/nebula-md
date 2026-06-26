@@ -266,7 +266,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
             %[6]s
         </div>
         <footer class="page-footer">
-            Created by <a href="https://basalt.j6n.dev" target="_blank" rel="noopener">Nebula</a>
+            Created by <a href="https://nebula-md.j6n.dev" target="_blank" rel="noopener">Nebula</a>
         </footer>
     </main>
     <aside class="sidebar-right">

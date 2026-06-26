@@ -1,4 +1,4 @@
-# Nebula
+# nebula.md
 
 A static-site-generator for my obsidian vault.
 

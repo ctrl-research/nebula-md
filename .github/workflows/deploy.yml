@@ -100,7 +100,7 @@ jobs:
       - name: Checkout nebula repo (source only)
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.NEBULA_REPO || 'gravityctl/nebula-md' }}
+          repository: ${{ vars.NEBULA_REPO || 'ctrl-research/nebula-md' }}
           path: nebula
           sparse-checkout: |
             src/
@@ -124,7 +124,7 @@ jobs:
       - name: Checkout vault repo
         uses: actions/checkout@v4
         with:
-          repository: ${{ inputs.vault_repo || 'gravityctl/nebula-md' }}
+          repository: ${{ inputs.vault_repo || 'ctrl-research/nebula-md' }}
           path: workspace
           ref: main
           sparse-checkout: |
