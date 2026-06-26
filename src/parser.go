@@ -111,7 +111,7 @@ func stripObsidianComments(data []byte) []byte {
 
 // graphEmbedSentinel is a marker that survives comment-stripping and markdown
 // conversion; injectGraphEmbeds swaps it for the embedded graph iframe afterwards.
-const graphEmbedSentinel = "BASALTGRAPHEMBEDxZ9"
+const graphEmbedSentinel = "NEBULAGRAPHEMBEDxZ9"
 
 // graphEmbedDirective matches an in-page graph embed written as either an Obsidian
 // comment (%% graph %%) or an HTML comment (<!-- graph -->), case-insensitive.

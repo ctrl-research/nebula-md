@@ -10,21 +10,21 @@ import (
 )
 
 // Config — adjust these to match your vault layout.
-// BASALT_INPUT and BASALT_OUTPUT override these defaults.
+// NEBULA_INPUT and NEBULA_OUTPUT override these defaults.
 var (
 	SourceDir = getSourceDir()
 	OutputDir = getOutputDir()
 )
 
 func getSourceDir() string {
-	if v := os.Getenv("BASALT_INPUT"); v != "" {
+	if v := os.Getenv("NEBULA_INPUT"); v != "" {
 		return v
 	}
 	return "../vault"
 }
 
 func getOutputDir() string {
-	if v := os.Getenv("BASALT_OUTPUT"); v != "" {
+	if v := os.Getenv("NEBULA_OUTPUT"); v != "" {
 		return v
 	}
 	return "../output"
@@ -34,7 +34,7 @@ func getOutputDir() string {
 var ignoredDirs []string
 
 // linkExt is appended to internal page links/paths. Empty when clean URLs are
-// enabled (BASALT_CLEAN_URLS, the default); ".html" otherwise. Files on disk are
+// enabled (NEBULA_CLEAN_URLS, the default); ".html" otherwise. Files on disk are
 // always written with a .html extension regardless of this setting.
 var linkExt = ".html"
 
@@ -71,9 +71,9 @@ type SiteConfig struct {
 }
 
 // readConfig reads site configuration from .env and environment variables.
-// Environment variables (BASALT_SITE_NAME, BASALT_SITE_THEME) override .env file values.
+// Environment variables (NEBULA_SITE_NAME, NEBULA_SITE_THEME) override .env file values.
 func readConfig() SiteConfig {
-	cfg := SiteConfig{SiteName: "Basalt", SiteTheme: "dark", GraphNodeSizeByEdges: true, GraphMode: GraphMode2D, CleanURLs: true}
+	cfg := SiteConfig{SiteName: "Nebula", SiteTheme: "dark", GraphNodeSizeByEdges: true, GraphMode: GraphMode2D, CleanURLs: true}
 	for _, envPath := range []string{".env", "../.env", "../../.env"} {
 		if _, err := os.Stat(envPath); err == nil {
 			if data, err := os.ReadFile(envPath); err == nil {
@@ -93,19 +93,19 @@ func readConfig() SiteConfig {
 							val = val[1 : len(val)-1]
 						}
 					}
-					if key == "BASALT_SITE_NAME" {
+					if key == "NEBULA_SITE_NAME" {
 						cfg.SiteName = val
-					} else if key == "BASALT_SITE_THEME" && (val == "light" || val == "dark") {
+					} else if key == "NEBULA_SITE_THEME" && (val == "light" || val == "dark") {
 						cfg.SiteTheme = val
-					} else if key == "BASALT_GRAPH_NODE_SIZE_BY_EDGES" {
+					} else if key == "NEBULA_GRAPH_NODE_SIZE_BY_EDGES" {
 						cfg.GraphNodeSizeByEdges = val == "true" || val == "1" || val == "yes"
-					} else if key == "BASALT_SHOW_LINKS" {
+					} else if key == "NEBULA_SHOW_LINKS" {
 						cfg.ShowLinks = val == "true" || val == "1" || val == "yes"
-					} else if key == "BASALT_FEATURE_AUTO_FOLDER_MOC" {
+					} else if key == "NEBULA_FEATURE_AUTO_FOLDER_MOC" {
 						cfg.FeatureAutoFolderMOC = val == "true" || val == "1" || val == "yes"
-					} else if key == "BASALT_GRAPH_MODE" && (val == "2d" || val == "nebula") {
+					} else if key == "NEBULA_GRAPH_MODE" && (val == "2d" || val == "nebula") {
 						cfg.GraphMode = GraphMode(val)
-					} else if key == "BASALT_CLEAN_URLS" {
+					} else if key == "NEBULA_CLEAN_URLS" {
 						cfg.CleanURLs = !(val == "false" || val == "0" || val == "no")
 					}
 				}
@@ -113,14 +113,14 @@ func readConfig() SiteConfig {
 			break
 		}
 	}
-	if v := os.Getenv("BASALT_SITE_NAME"); v != "" {
+	if v := os.Getenv("NEBULA_SITE_NAME"); v != "" {
 		cfg.SiteName = v
 	}
-	if v := os.Getenv("BASALT_SITE_THEME"); v == "light" || v == "dark" {
+	if v := os.Getenv("NEBULA_SITE_THEME"); v == "light" || v == "dark" {
 		cfg.SiteTheme = v
 	}
 	// Parse ignored directories (comma-separated)
-	if v := os.Getenv("BASALT_IGNORED_DIRS"); v != "" {
+	if v := os.Getenv("NEBULA_IGNORED_DIRS"); v != "" {
 		for _, part := range strings.Split(v, ",") {
 			part = strings.TrimSpace(part)
 			if part != "" {
@@ -129,21 +129,21 @@ func readConfig() SiteConfig {
 		}
 	}
 	// Parse boolean flags
-	if v := os.Getenv("BASALT_GRAPH_NODE_SIZE_BY_EDGES"); v != "" {
+	if v := os.Getenv("NEBULA_GRAPH_NODE_SIZE_BY_EDGES"); v != "" {
 		cfg.GraphNodeSizeByEdges = v == "true" || v == "1" || v == "yes"
 	}
-	if v := os.Getenv("BASALT_SHOW_LINKS"); v != "" {
+	if v := os.Getenv("NEBULA_SHOW_LINKS"); v != "" {
 		cfg.ShowLinks = v == "true" || v == "1" || v == "yes"
 	}
-	if v := os.Getenv("BASALT_FEATURE_AUTO_FOLDER_MOC"); v != "" {
+	if v := os.Getenv("NEBULA_FEATURE_AUTO_FOLDER_MOC"); v != "" {
 		cfg.FeatureAutoFolderMOC = v == "true" || v == "1" || v == "yes"
 	}
-	if v := os.Getenv("BASALT_GRAPH_MODE"); v == "nebula" {
+	if v := os.Getenv("NEBULA_GRAPH_MODE"); v == "nebula" {
 		cfg.GraphMode = GraphModeNebula
 	} else if v == "2d" {
 		cfg.GraphMode = GraphMode2D
 	}
-	if v := os.Getenv("BASALT_CLEAN_URLS"); v != "" {
+	if v := os.Getenv("NEBULA_CLEAN_URLS"); v != "" {
 		cfg.CleanURLs = !(v == "false" || v == "0" || v == "no")
 	}
 	// Leave GraphMode unchanged if env var is not set (preserve .env value)
@@ -170,7 +170,7 @@ func run() error {
 		return fmt.Errorf("creating graph dir: %w", err)
 	}
 
-	fmt.Println("Building Basalt Site...")
+	fmt.Println("Building Nebula Site...")
 
 	siteCfg := readConfig()
 	fmt.Printf("Config: site_name=%q theme=%q clean_urls=%v\n", siteCfg.SiteName, siteCfg.SiteTheme, siteCfg.CleanURLs)

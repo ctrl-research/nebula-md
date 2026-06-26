@@ -1,4 +1,4 @@
-module basalt
+module nebula
 
 go 1.25.0
 

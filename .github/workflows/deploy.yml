@@ -1,4 +1,4 @@
-name: Build and Deploy Basalt Site
+name: Build and Deploy Nebula Site
 
 on:
   push:
@@ -23,7 +23,7 @@ on:
       site_name:
         description: "Site name shown in header and titles"
         required: false
-        default: "Basalt"
+        default: "Nebula"
         type: string
       site_theme:
         description: "Default theme: dark or light"
@@ -63,7 +63,7 @@ on:
       site_name:
         description: "Site name shown in header and titles"
         required: false
-        default: "Basalt"
+        default: "Nebula"
         type: string
       site_theme:
         description: "Default theme: dark or light"
@@ -97,11 +97,11 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout basalt repo (source only)
+      - name: Checkout nebula repo (source only)
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.BASALT_REPO || 'gravityctl/basalt' }}
-          path: basalt
+          repository: ${{ vars.NEBULA_REPO || 'gravityctl/nebula-md' }}
+          path: nebula
           sparse-checkout: |
             src/
             go.mod
@@ -114,44 +114,44 @@ jobs:
         with:
           go-version: "1.23"
           cache: true
-          cache-dependency-path: basalt/go.sum
+          cache-dependency-path: nebula/go.sum
 
-      - name: Build basalt binary
+      - name: Build nebula binary
         run: |
-          cd basalt/src
-          CGO_ENABLED=0 go build -buildvcs=false -o basalt .
+          cd nebula/src
+          CGO_ENABLED=0 go build -buildvcs=false -o nebula .
 
       - name: Checkout vault repo
         uses: actions/checkout@v4
         with:
-          repository: ${{ inputs.vault_repo || 'gravityctl/basalt' }}
+          repository: ${{ inputs.vault_repo || 'gravityctl/nebula-md' }}
           path: workspace
           ref: main
           sparse-checkout: |
             ${{ inputs.vault_directory || 'vault' }}
           sparse-checkout-cone-mode: false
 
-      - name: Prepare vault layout for basalt
+      - name: Prepare vault layout for nebula
         run: |
-          cp -r "workspace/${{ inputs.vault_directory || 'vault' }}" basalt/vault
+          cp -r "workspace/${{ inputs.vault_directory || 'vault' }}" nebula/vault
 
       - name: Build site
         run: |
-          cd basalt
-          ./src/basalt
+          cd nebula
+          ./src/nebula
         env:
-          BASALT_SITE_NAME: ${{ inputs.site_name || 'Basalt 🪨' }}
-          BASALT_SITE_THEME: ${{ inputs.site_theme || 'dark' }}
-          BASALT_IGNORED_DIRS: ${{ inputs.ignored_dirs || '' }}
-          BASALT_GRAPH_MODE: ${{ inputs.graph_mode || '2d' }}
-          BASALT_CLEAN_URLS: ${{ inputs.clean_urls }}
-          BASALT_INPUT: vault
-          BASALT_OUTPUT: output
+          NEBULA_SITE_NAME: ${{ inputs.site_name || 'Nebula 🪨' }}
+          NEBULA_SITE_THEME: ${{ inputs.site_theme || 'dark' }}
+          NEBULA_IGNORED_DIRS: ${{ inputs.ignored_dirs || '' }}
+          NEBULA_GRAPH_MODE: ${{ inputs.graph_mode || '2d' }}
+          NEBULA_CLEAN_URLS: ${{ inputs.clean_urls }}
+          NEBULA_INPUT: vault
+          NEBULA_OUTPUT: output
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: basalt/output
+          path: nebula/output
 
       - name: Deploy to GitHub Pages
         id: deployment

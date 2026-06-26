@@ -266,7 +266,7 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
             %[6]s
         </div>
         <footer class="page-footer">
-            Created by <a href="https://basalt.j6n.dev" target="_blank" rel="noopener">Basalt</a>
+            Created by <a href="https://basalt.j6n.dev" target="_blank" rel="noopener">Nebula</a>
         </footer>
     </main>
     <aside class="sidebar-right">
@@ -362,10 +362,10 @@ window.navTree = %[11]s;
         return html;
     }
     function getExpandedFolders() {
-        try { return JSON.parse(sessionStorage.getItem('basalt-nav-open') || []); } catch(e) { return []; }
+        try { return JSON.parse(sessionStorage.getItem('nebula-nav-open') || []); } catch(e) { return []; }
     }
     function saveExpandedFolders(folders) {
-        try { sessionStorage.setItem('basalt-nav-open', JSON.stringify(folders)); } catch(e) {}
+        try { sessionStorage.setItem('nebula-nav-open', JSON.stringify(folders)); } catch(e) {}
     }
     var navEl = document.getElementById('nav-tree');
     if (navEl) navEl.innerHTML = buildNavHTML(window.navTree || [], '');
@@ -377,7 +377,7 @@ window.navTree = %[11]s;
     var html = document.documentElement;
     var toggle = document.getElementById('theme-toggle');
     // Apply saved preference or default to dark
-    var saved = localStorage.getItem('basalt-theme');
+    var saved = localStorage.getItem('nebula-theme');
     if (saved) { html.setAttribute('data-theme', saved); }
     else { html.setAttribute('data-theme', 'dark'); }
     updateIcon();
@@ -385,7 +385,7 @@ window.navTree = %[11]s;
         var current = html.getAttribute('data-theme');
         var next = current === 'dark' ? 'light' : 'dark';
         html.setAttribute('data-theme', next);
-        localStorage.setItem('basalt-theme', next);
+        localStorage.setItem('nebula-theme', next);
         updateIcon();
     });
     function updateIcon() {

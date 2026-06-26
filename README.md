@@ -1,4 +1,4 @@
-# Basalt
+# Nebula
 
 A static-site-generator for my obsidian vault.
 
