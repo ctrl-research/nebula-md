@@ -140,7 +140,7 @@ jobs:
           cd nebula
           ./src/nebula
         env:
-          NEBULA_SITE_NAME: ${{ inputs.site_name || 'Nebula 🪨' }}
+          NEBULA_SITE_NAME: ${{ inputs.site_name || 'Nebula ✨' }}
           NEBULA_SITE_THEME: ${{ inputs.site_theme || 'dark' }}
           NEBULA_IGNORED_DIRS: ${{ inputs.ignored_dirs || '' }}
           NEBULA_GRAPH_MODE: ${{ inputs.graph_mode || '2d' }}
