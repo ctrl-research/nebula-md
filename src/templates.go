@@ -439,6 +439,10 @@ window.navTree = %[11]s;
             .force('link', _d3.forceLink(edges).id(function(d) { return d.id; }).distance(40))
             .force('charge', _d3.forceManyBody().strength(-80))
             .force('center', _d3.forceCenter(w / 2, h / 2))
+            // Obsidian-style circular bias: a weak per-node pull toward the center
+            // rounds out the silhouette and keeps outliers inside the small canvas.
+            .force('x', _d3.forceX(w / 2).strength(0.08))
+            .force('y', _d3.forceY(h / 2).strength(0.08))
             .force('collision', _d3.forceCollide().radius(15));
         // Render nodes/links immediately (before sim ticks)
         var link = linkG.selectAll('line').data(edges).enter().append('line').style('stroke', '#ccc').style('stroke-width', 1.5);
@@ -822,6 +826,12 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; }).distance(180))
         .force("charge", d3.forceManyBody().strength(-2))
         .force("center", d3.forceCenter(w / 2, h / 2))
+        // Obsidian-style circular bias: forceCenter only re-centers the mean, so the
+        // layout can sprawl and disconnected components drift apart. A weak per-node
+        // pull toward the center gives the whole graph a round silhouette and gathers
+        // islands into the same circular cloud (collision keeps them from overlapping).
+        .force("x", d3.forceX(w / 2).strength(0.05))
+        .force("y", d3.forceY(h / 2).strength(0.05))
         .force("collision", d3.forceCollide().radius(20))
         .alpha(0.3);
     var link = zoomG.selectAll("line").data(graph.edges).enter().append("line").attr("class", "link");
@@ -1970,13 +1980,29 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // ---- Simulated physics (gentle repulsion + centering) ----
+        // ---- Simulated physics (repulsion + link springs + spherical bias) ----
         // We use a simple Euler integration to spread nodes
         var positions = nodeMeshes.map(function(m) { return m.position.clone(); });
         var velocities = nodeMeshes.map(function() { return new THREE.Vector3(); });
 
+        // Link springs: connected notes attract toward a rest distance, so clusters
+        // form around hubs (Obsidian-style) instead of nodes spreading uniformly.
+        var LINK_DIST = 40, LINK_STRENGTH = 0.06;
+        // Spherical bias: per-node pull toward the origin — the 3D analog of the
+        // circular bias in the 2D graphs. Keeps the whole cloud a round ball and
+        // draws disconnected islands into the same sphere.
+        var SPHERE_BIAS = 0.02;
+        var nodeIndex = {};
+        nodeMeshes.forEach(function(m, i) { nodeIndex[m.userData.id] = i; });
+        var springPairs = [];
+        graph.edges.forEach(function(e) {
+            var sid = typeof e.source === 'object' ? e.source.id : e.source;
+            var tid = typeof e.target === 'object' ? e.target.id : e.target;
+            var si = nodeIndex[sid], ti = nodeIndex[tid];
+            if (si !== undefined && ti !== undefined && si !== ti) springPairs.push([si, ti]);
+        });
+
         function simulate(dt) {
-            var center = new THREE.Vector3(0, 0, 0);
             var count = positions.length;
 
             for (var i = 0; i < count; i++) {
@@ -1994,12 +2020,27 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                     velocities[j].x -= fx * dt; velocities[j].y -= fy * dt; velocities[j].z -= fz * dt;
                 }
 
-                // Center gravity
-                var cx = -p.x * 0.005, cy = -p.y * 0.005, cz = -p.z * 0.005;
-                v.x += cx * dt; v.y += cy * dt; v.z += cz * dt;
+                // Spherical bias (linear pull to origin, stronger the farther out)
+                v.x -= p.x * SPHERE_BIAS * dt;
+                v.y -= p.y * SPHERE_BIAS * dt;
+                v.z -= p.z * SPHERE_BIAS * dt;
+            }
 
-                // Damping
-                v.multiplyScalar(0.92);
+            // Link springs pull each connected pair toward LINK_DIST apart
+            for (var s = 0; s < springPairs.length; s++) {
+                var a = positions[springPairs[s][0]], b = positions[springPairs[s][1]];
+                var sdx = b.x - a.x, sdy = b.y - a.y, sdz = b.z - a.z;
+                var sdist = Math.sqrt(sdx * sdx + sdy * sdy + sdz * sdz) + 0.001;
+                var sf = LINK_STRENGTH * (sdist - LINK_DIST) / sdist;
+                var sfx = sdx * sf * dt, sfy = sdy * sf * dt, sfz = sdz * sf * dt;
+                var va = velocities[springPairs[s][0]], vb = velocities[springPairs[s][1]];
+                va.x += sfx; va.y += sfy; va.z += sfz;
+                vb.x -= sfx; vb.y -= sfy; vb.z -= sfz;
+            }
+
+            // Damping
+            for (var di = 0; di < count; di++) {
+                velocities[di].multiplyScalar(0.92);
             }
 
             // Apply velocities
