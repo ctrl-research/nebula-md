@@ -822,16 +822,17 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     // Zoom/pan via scroll wheel and drag on SVG background
     var zoomG = svg.append("g");
     svg.call(d3.zoom().scaleExtent([0.1, 4]).on("zoom", function(e) { zoomG.attr("transform", e.transform); }));
+    // Obsidian-style layout: strong many-body repulsion spreads nodes evenly, short
+    // weak-ish links keep neighbors adjacent without tangling, and per-node forceX/Y
+    // (forceCenter only re-centers the mean — it doesn't shape anything) pulls the
+    // even spread into a circular silhouette. Isolated notes drift inward until
+    // repulsion balances, filling the gaps between clusters uniformly.
     var sim = d3.forceSimulation(graph.nodes)
-        .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; }).distance(180))
-        .force("charge", d3.forceManyBody().strength(-2))
+        .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; }).distance(60).strength(0.4))
+        .force("charge", d3.forceManyBody().strength(-200))
         .force("center", d3.forceCenter(w / 2, h / 2))
-        // Obsidian-style circular bias: forceCenter only re-centers the mean, so the
-        // layout can sprawl and disconnected components drift apart. A weak per-node
-        // pull toward the center gives the whole graph a round silhouette and gathers
-        // islands into the same circular cloud (collision keeps them from overlapping).
-        .force("x", d3.forceX(w / 2).strength(0.05))
-        .force("y", d3.forceY(h / 2).strength(0.05))
+        .force("x", d3.forceX(w / 2).strength(0.2))
+        .force("y", d3.forceY(h / 2).strength(0.2))
         .force("collision", d3.forceCollide().radius(20))
         .alpha(0.3);
     var link = zoomG.selectAll("line").data(graph.edges).enter().append("line").attr("class", "link");
@@ -1985,21 +1986,32 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         var positions = nodeMeshes.map(function(m) { return m.position.clone(); });
         var velocities = nodeMeshes.map(function() { return new THREE.Vector3(); });
 
-        // Link springs: connected notes attract toward a rest distance, so clusters
-        // form around hubs (Obsidian-style) instead of nodes spreading uniformly.
-        var LINK_DIST = 40, LINK_STRENGTH = 0.06;
-        // Spherical bias: per-node pull toward the origin — the 3D analog of the
-        // circular bias in the 2D graphs. Keeps the whole cloud a round ball and
-        // draws disconnected islands into the same sphere.
-        var SPHERE_BIAS = 0.02;
+        // Obsidian-style "mold spore" layout: strong repulsion spaces everything
+        // evenly, stiff short springs glue each cluster tightly around its hub so
+        // clusters read as separate spores rather than one tangle, and the spherical
+        // bias (the 3D analog of the 2D circular bias) pulls the even spread into a
+        // round ball, isolated notes filling the gaps.
+        var REPEL = 4000;
+        var LINK_DIST = 25, LINK_STRENGTH = 1.5;
+        var SPHERE_BIAS = 0.05;
         var nodeIndex = {};
         nodeMeshes.forEach(function(m, i) { nodeIndex[m.userData.id] = i; });
-        var springPairs = [];
+        var degree = nodeMeshes.map(function() { return 0; });
+        var springPairs = []; // [sourceIdx, targetIdx, strength]
         graph.edges.forEach(function(e) {
             var sid = typeof e.source === 'object' ? e.source.id : e.source;
             var tid = typeof e.target === 'object' ? e.target.id : e.target;
             var si = nodeIndex[sid], ti = nodeIndex[tid];
-            if (si !== undefined && ti !== undefined && si !== ti) springPairs.push([si, ti]);
+            if (si !== undefined && ti !== undefined && si !== ti) {
+                springPairs.push([si, ti, 0]);
+                degree[si]++; degree[ti]++;
+            }
+        });
+        // d3-style degree normalization: a spring is only as stiff as its
+        // lower-degree endpoint allows, so hub-hub links stay loose and hubs
+        // aren't dragged into each other's clusters.
+        springPairs.forEach(function(sp) {
+            sp[2] = LINK_STRENGTH / Math.max(1, Math.min(degree[sp[0]], degree[sp[1]]));
         });
 
         function simulate(dt) {
@@ -2009,12 +2021,13 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 var p = positions[i];
                 var v = velocities[i];
 
-                // Repulsion between all pairs
+                // Repulsion between all pairs (capped at close range so a frame
+                // hitch on near-coincident nodes can't launch them)
                 for (var j = i + 1; j < count; j++) {
                     var q = positions[j];
                     var dx = p.x - q.x, dy = p.y - q.y, dz = p.z - q.z;
                     var dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.001;
-                    var force = 800 / (dist * dist);
+                    var force = REPEL / Math.max(dist * dist, 25);
                     var fx = dx / dist * force, fy = dy / dist * force, fz = dz / dist * force;
                     v.x += fx * dt; v.y += fy * dt; v.z += fz * dt;
                     velocities[j].x -= fx * dt; velocities[j].y -= fy * dt; velocities[j].z -= fz * dt;
@@ -2031,7 +2044,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 var a = positions[springPairs[s][0]], b = positions[springPairs[s][1]];
                 var sdx = b.x - a.x, sdy = b.y - a.y, sdz = b.z - a.z;
                 var sdist = Math.sqrt(sdx * sdx + sdy * sdy + sdz * sdz) + 0.001;
-                var sf = LINK_STRENGTH * (sdist - LINK_DIST) / sdist;
+                var sf = springPairs[s][2] * (sdist - LINK_DIST) / sdist;
                 var sfx = sdx * sf * dt, sfy = sdy * sf * dt, sfz = sdz * sf * dt;
                 var va = velocities[springPairs[s][0]], vb = velocities[springPairs[s][1]];
                 va.x += sfx; va.y += sfy; va.z += sfz;
