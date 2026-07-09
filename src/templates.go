@@ -881,13 +881,23 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
             }
         }
     }
+    // Degree-aware links keep hubs untangled within a component: spoke edges to
+    // leaves stay short and stiff (d3's default link strength is 1/min-degree,
+    // ~1 for a leaf) so each halo hugs its hub, while hub-hub edges are long and
+    // loose so two connected hubs sit far enough apart that their halos don't
+    // interleave. Hubs also repel harder (charge scales with degree) to push
+    // neighboring halos off each other.
     var sim = d3.forceSimulation(graph.nodes)
-        .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; }).distance(60).strength(0.4))
-        .force("charge", d3.forceManyBody().strength(-250))
+        .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; })
+            .distance(function(l) {
+                var ds = adj[l.source.id || l.source].length, dt = adj[l.target.id || l.target].length;
+                return 60 + 8 * Math.min(ds, dt);
+            }))
+        .force("charge", d3.forceManyBody().strength(function(d) { return -250 - 15 * adj[d.id].length; }))
         .force("center", d3.forceCenter(w / 2, h / 2))
         .force("x", d3.forceX(w / 2).strength(0.2))
         .force("y", d3.forceY(h / 2).strength(0.2))
-        .force("collision", d3.forceCollide().radius(20))
+        .force("collision", d3.forceCollide().radius(function(d) { return 20 + adj[d.id].length; }))
         .force("cluster", forceClusterSeparation)
         .alpha(0.3);
     var link = zoomG.selectAll("line").data(graph.edges).enter().append("line").attr("class", "link");
@@ -2047,7 +2057,10 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         // bias (the 3D analog of the 2D circular bias) pulls the even spread into a
         // round ball, isolated notes filling the gaps. Nodes in different clusters
         // repel each other extra hard so every spore keeps a clear buffer around it.
-        var REPEL = 4000;
+        // Repulsion is modest because the cluster-aware seeding below starts the
+        // layout near equilibrium — it only fine-tunes, rather than exploding a
+        // dense ball outward.
+        var REPEL = 2500;
         var INTER_CLUSTER_REPEL = 3;
         var LINK_DIST = 25, LINK_STRENGTH = 1.5;
         var SPHERE_BIAS = 0.05;
@@ -2083,6 +2096,56 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         var clusterCounts = {};
         clusterOf.forEach(function(c) { clusterCounts[c] = (clusterCounts[c] || 0) + 1; });
         var inCluster = clusterOf.map(function(c) { return clusterCounts[c] > 1; });
+
+        // Cluster-aware seeding: instead of spawning everything in one dense ball
+        // that explodes outward, give each cluster its own anchor on a Fibonacci
+        // sphere (evenly spaced directions) and scatter its members around that
+        // anchor, sized by cluster population. The layout starts already spread
+        // out, so the opening settle is a gentle drift instead of a big bang.
+        var clusterMembers = {};
+        clusterOf.forEach(function(c, i) {
+            if (inCluster[i]) (clusterMembers[c] = clusterMembers[c] || []).push(i);
+        });
+        var clusterIds = Object.keys(clusterMembers).sort(function(a, b) {
+            return clusterMembers[b].length - clusterMembers[a].length;
+        });
+        var clusterRadii = clusterIds.map(function(cid) {
+            return LINK_DIST * (0.5 + 0.5 * Math.cbrt(clusterMembers[cid].length));
+        });
+        var avgRadius = clusterRadii.length
+            ? clusterRadii.reduce(function(a, b) { return a + b; }, 0) / clusterRadii.length : 0;
+        // Anchor sphere sized so neighboring anchors sit roughly two cluster radii apart
+        var anchorR = Math.max(40, avgRadius * Math.sqrt(clusterIds.length) * 1.2);
+        var GOLDEN_ANGLE = 2.399963229728653;
+        clusterIds.forEach(function(cid, k) {
+            var N = clusterIds.length;
+            var gy = N === 1 ? 0 : 1 - 2 * k / (N - 1);
+            var gr = Math.sqrt(Math.max(0, 1 - gy * gy));
+            var ax = Math.cos(k * GOLDEN_ANGLE) * gr * anchorR;
+            var ay = gy * anchorR;
+            var az = Math.sin(k * GOLDEN_ANGLE) * gr * anchorR;
+            var cr = clusterRadii[k];
+            clusterMembers[cid].forEach(function(i) {
+                var th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+                var rr = cr * Math.cbrt(Math.random());
+                positions[i].set(
+                    ax + rr * Math.sin(ph) * Math.cos(th),
+                    ay + rr * Math.cos(ph),
+                    az + rr * Math.sin(ph) * Math.sin(th));
+                nodeMeshes[i].position.copy(positions[i]);
+            });
+        });
+        // Singletons scatter through the same shell, filling gaps between clusters
+        nodeMeshes.forEach(function(m, i) {
+            if (inCluster[i]) return;
+            var th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+            var rr = anchorR * (0.4 + 0.7 * Math.random());
+            positions[i].set(
+                rr * Math.sin(ph) * Math.cos(th),
+                rr * Math.cos(ph),
+                rr * Math.sin(ph) * Math.sin(th));
+            nodeMeshes[i].position.copy(positions[i]);
+        });
 
         function simulate(dt) {
             var count = positions.length;
