@@ -827,13 +827,68 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
     // (forceCenter only re-centers the mean — it doesn't shape anything) pulls the
     // even spread into a circular silhouette. Isolated notes drift inward until
     // repulsion balances, filling the gaps between clusters uniformly.
+    // Tag each node with its connected component so clusters can repel as units.
+    var adj = {};
+    graph.nodes.forEach(function(n) { adj[n.id] = []; });
+    graph.edges.forEach(function(e) { adj[e.source].push(e.target); adj[e.target].push(e.source); });
+    var compOf = {}, compSizes = [], compCount = 0;
+    graph.nodes.forEach(function(n) {
+        if (compOf[n.id] !== undefined) return;
+        var stack = [n.id]; compOf[n.id] = compCount; var size = 0;
+        while (stack.length) {
+            var cur = stack.pop(); size++;
+            adj[cur].forEach(function(nb) { if (compOf[nb] === undefined) { compOf[nb] = compCount; stack.push(nb); } });
+        }
+        compSizes.push(size); compCount++;
+    });
+    graph.nodes.forEach(function(n) { n.component = compOf[n.id]; });
+    // Cluster-separation force: each multi-node component keeps a buffer between
+    // its hull and its neighbors' so clusters can't drift into a tangle. Singleton
+    // notes are exempt — they still fill the gaps between clusters.
+    var CLUSTER_BUFFER = 40;
+    function forceClusterSeparation(alpha) {
+        var comps = [];
+        for (var c = 0; c < compCount; c++) comps.push(compSizes[c] > 1 ? { x: 0, y: 0, r: 0, nodes: [] } : null);
+        graph.nodes.forEach(function(n) {
+            var cc = comps[n.component];
+            if (cc) { cc.x += n.x; cc.y += n.y; cc.nodes.push(n); }
+        });
+        comps.forEach(function(cc) {
+            if (!cc) return;
+            cc.x /= cc.nodes.length; cc.y /= cc.nodes.length;
+            cc.nodes.forEach(function(n) {
+                var dx = n.x - cc.x, dy = n.y - cc.y;
+                var d2 = dx * dx + dy * dy;
+                if (d2 > cc.r * cc.r) cc.r = Math.sqrt(d2);
+            });
+        });
+        for (var i = 0; i < comps.length; i++) {
+            var a = comps[i]; if (!a) continue;
+            for (var j = i + 1; j < comps.length; j++) {
+                var b = comps[j]; if (!b) continue;
+                var dx = b.x - a.x, dy = b.y - a.y;
+                var dist = Math.sqrt(dx * dx + dy * dy) || 1e-6;
+                var want = a.r + b.r + CLUSTER_BUFFER;
+                if (dist >= want) continue;
+                // Push both clusters apart along the centroid axis, heavier
+                // clusters moving proportionally less.
+                var push = (want - dist) / dist * alpha * 0.6;
+                var total = a.nodes.length + b.nodes.length;
+                var ax = -dx * push * b.nodes.length / total, ay = -dy * push * b.nodes.length / total;
+                var bx = dx * push * a.nodes.length / total, by = dy * push * a.nodes.length / total;
+                a.nodes.forEach(function(n) { n.vx += ax; n.vy += ay; });
+                b.nodes.forEach(function(n) { n.vx += bx; n.vy += by; });
+            }
+        }
+    }
     var sim = d3.forceSimulation(graph.nodes)
         .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; }).distance(60).strength(0.4))
-        .force("charge", d3.forceManyBody().strength(-200))
+        .force("charge", d3.forceManyBody().strength(-250))
         .force("center", d3.forceCenter(w / 2, h / 2))
         .force("x", d3.forceX(w / 2).strength(0.2))
         .force("y", d3.forceY(h / 2).strength(0.2))
         .force("collision", d3.forceCollide().radius(20))
+        .force("cluster", forceClusterSeparation)
         .alpha(0.3);
     var link = zoomG.selectAll("line").data(graph.edges).enter().append("line").attr("class", "link");
     // Build neighbor set for hover highlighting (edges are still strings here)
@@ -1990,8 +2045,10 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         // evenly, stiff short springs glue each cluster tightly around its hub so
         // clusters read as separate spores rather than one tangle, and the spherical
         // bias (the 3D analog of the 2D circular bias) pulls the even spread into a
-        // round ball, isolated notes filling the gaps.
+        // round ball, isolated notes filling the gaps. Nodes in different clusters
+        // repel each other extra hard so every spore keeps a clear buffer around it.
         var REPEL = 4000;
+        var INTER_CLUSTER_REPEL = 3;
         var LINK_DIST = 25, LINK_STRENGTH = 1.5;
         var SPHERE_BIAS = 0.05;
         var nodeIndex = {};
@@ -2013,6 +2070,19 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         springPairs.forEach(function(sp) {
             sp[2] = LINK_STRENGTH / Math.max(1, Math.min(degree[sp[0]], degree[sp[1]]));
         });
+        // Connected components (union-find over the springs) so nodes in different
+        // clusters can repel harder. Singletons are exempt so isolated notes still
+        // settle into the gaps between spores.
+        var compParent = nodeMeshes.map(function(_, i) { return i; });
+        function compFind(x) {
+            while (compParent[x] !== x) { compParent[x] = compParent[compParent[x]]; x = compParent[x]; }
+            return x;
+        }
+        springPairs.forEach(function(sp) { compParent[compFind(sp[0])] = compFind(sp[1]); });
+        var clusterOf = nodeMeshes.map(function(_, i) { return compFind(i); });
+        var clusterCounts = {};
+        clusterOf.forEach(function(c) { clusterCounts[c] = (clusterCounts[c] || 0) + 1; });
+        var inCluster = clusterOf.map(function(c) { return clusterCounts[c] > 1; });
 
         function simulate(dt) {
             var count = positions.length;
@@ -2028,6 +2098,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                     var dx = p.x - q.x, dy = p.y - q.y, dz = p.z - q.z;
                     var dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.001;
                     var force = REPEL / Math.max(dist * dist, 25);
+                    if (inCluster[i] && inCluster[j] && clusterOf[i] !== clusterOf[j]) force *= INTER_CLUSTER_REPEL;
                     var fx = dx / dist * force, fy = dy / dist * force, fz = dz / dist * force;
                     v.x += fx * dt; v.y += fy * dt; v.z += fz * dt;
                     velocities[j].x -= fx * dt; velocities[j].y -= fy * dt; velocities[j].z -= fz * dt;
