@@ -894,9 +894,18 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
                 // A bridge between two hubs must clear both halos. A halo's
                 // radius is its spoke length plus crowding stretch (leaves repel
                 // each other outward), so it grows with degree — budget for both
-                // ends plus a buffer.
-                if (Math.min(ds, dt) >= 3) return (60 + 4 * ds) + (60 + 4 * dt) + 30;
+                // ends plus a buffer (oversized a bit since the centering pull
+                // compresses long links below their nominal length).
+                if (Math.min(ds, dt) >= 3) return (60 + 5 * ds) + (60 + 5 * dt) + 50;
                 return 60 + 8 * Math.min(ds, dt);
+            })
+            .strength(function(l) {
+                var ds = adj[l.source.id || l.source].length, dt = adj[l.target.id || l.target].length;
+                // Bridges get a firm strength: d3's default (1/min-degree) is so
+                // weak for hub-hub links that the centering pull would crush the
+                // budgeted distance and fold the halos into each other.
+                if (Math.min(ds, dt) >= 3) return 0.5;
+                return 1 / Math.min(ds, dt);
             }))
         .force("charge", d3.forceManyBody().strength(function(d) { return -250 - 15 * adj[d.id].length; }))
         .force("center", d3.forceCenter(w / 2, h / 2))
@@ -2072,7 +2081,7 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
         var nodeIndex = {};
         nodeMeshes.forEach(function(m, i) { nodeIndex[m.userData.id] = i; });
         var degree = nodeMeshes.map(function() { return 0; });
-        var springPairs = []; // [sourceIdx, targetIdx, strength]
+        var springPairs = []; // [sourceIdx, targetIdx, strength, restLength]
         graph.edges.forEach(function(e) {
             var sid = typeof e.source === 'object' ? e.source.id : e.source;
             var tid = typeof e.target === 'object' ? e.target.id : e.target;
@@ -2083,10 +2092,20 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
             }
         });
         // d3-style degree normalization: a spring is only as stiff as its
-        // lower-degree endpoint allows, so hub-hub links stay loose and hubs
-        // aren't dragged into each other's clusters.
+        // lower-degree endpoint allows, so leaf spokes stay short and stiff.
+        // A bridge between two hubs instead gets a long, firm spring sized to
+        // clear both halos (spoke length plus crowding stretch grows with
+        // degree), so connected hubs sit apart rather than merging into one
+        // tangle — the 3D twin of the 2D hub-bridge rule.
         springPairs.forEach(function(sp) {
-            sp[2] = LINK_STRENGTH / Math.max(1, Math.min(degree[sp[0]], degree[sp[1]]));
+            var dS = degree[sp[0]], dT = degree[sp[1]];
+            if (Math.min(dS, dT) >= 3) {
+                sp[2] = LINK_STRENGTH * 0.7;
+                sp[3] = (LINK_DIST + 2 * dS) + (LINK_DIST + 2 * dT) + 25;
+            } else {
+                sp[2] = LINK_STRENGTH / Math.max(1, Math.min(dS, dT));
+                sp[3] = LINK_DIST;
+            }
         });
         // Connected components (union-find over the springs) so nodes in different
         // clusters can repel harder. Singletons are exempt so isolated notes still
@@ -2178,12 +2197,12 @@ func writeFullGraphViewerNebula(graphDir string, graphJSON []byte, siteTheme str
                 v.z -= p.z * SPHERE_BIAS * dt;
             }
 
-            // Link springs pull each connected pair toward LINK_DIST apart
+            // Link springs pull each connected pair toward its rest length
             for (var s = 0; s < springPairs.length; s++) {
                 var a = positions[springPairs[s][0]], b = positions[springPairs[s][1]];
                 var sdx = b.x - a.x, sdy = b.y - a.y, sdz = b.z - a.z;
                 var sdist = Math.sqrt(sdx * sdx + sdy * sdy + sdz * sdz) + 0.001;
-                var sf = springPairs[s][2] * (sdist - LINK_DIST) / sdist;
+                var sf = springPairs[s][2] * (sdist - springPairs[s][3]) / sdist;
                 var sfx = sdx * sf * dt, sfy = sdy * sf * dt, sfz = sdz * sf * dt;
                 var va = velocities[springPairs[s][0]], vb = velocities[springPairs[s][1]];
                 va.x += sfx; va.y += sfy; va.z += sfz;
