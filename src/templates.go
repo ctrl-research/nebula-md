@@ -891,6 +891,11 @@ func writeFullGraphViewer(graphDir string, graphJSON []byte, siteTheme string, s
         .force("link", d3.forceLink(graph.edges).id(function(d) { return d.id; })
             .distance(function(l) {
                 var ds = adj[l.source.id || l.source].length, dt = adj[l.target.id || l.target].length;
+                // A bridge between two hubs must clear both halos. A halo's
+                // radius is its spoke length plus crowding stretch (leaves repel
+                // each other outward), so it grows with degree — budget for both
+                // ends plus a buffer.
+                if (Math.min(ds, dt) >= 3) return (60 + 4 * ds) + (60 + 4 * dt) + 30;
                 return 60 + 8 * Math.min(ds, dt);
             }))
         .force("charge", d3.forceManyBody().strength(function(d) { return -250 - 15 * adj[d.id].length; }))
