@@ -173,6 +173,24 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	.markdown-body h4 { margin: 1.8em 0 0.5em; font-size: 1rem; }
 	.markdown-body h5, .markdown-body h6 { margin: 1.6em 0 0.5em; font-size: 0.92rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 	.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 { scroll-margin-top: 28px; }
+	/* Copy-link button injected next to each heading (see the heading-links script). */
+	.markdown-body a.heading-link {
+		display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
+		width: 1.5em; height: 1.5em; margin-left: 0.3em; border: none; border-radius: 6px;
+		color: var(--muted); font-size: 0.75em; opacity: 0; transition: opacity 0.15s, color 0.15s, background 0.15s;
+	}
+	.markdown-body a.heading-link svg { width: 1em; height: 1em; }
+	.markdown-body :is(h1, h2, h3, h4, h5, h6):hover a.heading-link, .markdown-body a.heading-link:focus-visible { opacity: 1; }
+	.markdown-body a.heading-link:hover { color: var(--accent); background: var(--hover); }
+	.markdown-body a.heading-link.copied { opacity: 1; color: var(--accent); }
+	@media (hover: none) { .markdown-body a.heading-link { opacity: 0.5; } }
+	.heading-link-toast {
+		position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 8px); z-index: 60;
+		padding: 8px 14px; border-radius: 9px; background: var(--card-bg); color: var(--heading);
+		border: 1px solid var(--border-strong); box-shadow: var(--shadow-lg); font-size: 13px; font-weight: 500;
+		opacity: 0; pointer-events: none; transition: opacity 0.18s, transform 0.18s;
+	}
+	.heading-link-toast.show { opacity: 1; transform: translate(-50%, 0); }
 	.markdown-body a {
 		color: var(--link); text-decoration: none; font-weight: 500;
 		border-bottom: 1px solid color-mix(in srgb, var(--link) 32%, transparent);
@@ -974,6 +992,55 @@ window.navTree = %[11]s;
     headings.forEach(function(h) { obs.observe(h); });
     window.addEventListener('scroll', paint, { passive: true });
     paint();
+})();
+</script>
+<script>
+// ---- Heading links: hover a heading for a button that copies a link to it ----
+(function() {
+    var link = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+    var check = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+    var toast = null, toastTimer = null;
+    function notify(msg) {
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.className = 'heading-link-toast';
+            toast.setAttribute('role', 'status');
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 1600);
+    }
+    function copy(text) {
+        if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+        return new Promise(function(resolve, reject) {
+            var ta = document.createElement('textarea');
+            ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            try { document.execCommand('copy') ? resolve() : reject(); } catch (e) { reject(e); }
+            document.body.removeChild(ta);
+        });
+    }
+    document.querySelectorAll('.markdown-body :is(h1, h2, h3, h4, h5, h6)[id]').forEach(function(h) {
+        var a = document.createElement('a');
+        a.className = 'heading-link';
+        // A real href keeps right-click "Copy link" and middle-click working too.
+        a.href = '#' + encodeURIComponent(h.id);
+        a.setAttribute('aria-label', 'Copy link to section: ' + h.textContent.trim());
+        a.title = 'Copy link to section';
+        a.innerHTML = link;
+        a.addEventListener('click', function(e) {
+            e.preventDefault();
+            var url = location.origin + location.pathname + location.search + a.getAttribute('href');
+            history.replaceState(null, '', a.getAttribute('href'));
+            copy(url).then(function() {
+                a.classList.add('copied'); a.innerHTML = check; notify('Link copied');
+                setTimeout(function() { a.classList.remove('copied'); a.innerHTML = link; }, 1600);
+            }, function() { notify('Couldn\'t copy link'); });
+        });
+        h.appendChild(a);
+    });
 })();
 </script>
 </body>
