@@ -313,6 +313,14 @@ func run() error {
 	fmt.Printf("Search index: %d pages\n", len(searchIndex))
 
 	writeGraphViewer(graphDir, graphJSON, siteCfg.SiteTheme, siteCfg.SiteName, siteCfg.GraphNodeSizeByEdges, siteCfg.GraphMode)
+
+	mapPins := buildMapPins(SourceDir)
+	if len(mapPins) > 0 {
+		if err := writeMapViewer(OutputDir, mapPins, siteCfg.SiteTheme, siteCfg.SiteName); err != nil {
+			return fmt.Errorf("writing map viewer: %w", err)
+		}
+		fmt.Printf("Map: %d pins\n", len(mapPins))
+	}
 	fmt.Println("Build complete.")
 	return nil
 }

@@ -36,6 +36,7 @@ func (p *MarkdownParser) ProcessFile(filePath, sourceRelPath string) (title stri
 
 	// Convert in-page graph directives to a sentinel before anything strips comments.
 	rawContent = protectGraphEmbeds(rawContent)
+	rawContent = protectMapEmbeds(rawContent)
 
 	// Strip comments first so frontmatter/title extraction ignores comment content
 	contentNoComments := stripObsidianComments(rawContent)
@@ -68,6 +69,7 @@ func (p *MarkdownParser) ProcessFile(filePath, sourceRelPath string) (title stri
 		prefix = strings.Repeat("../", strings.Count(dir, "/")+1)
 	}
 	htmlBody = injectGraphEmbeds(htmlBody, prefix)
+	htmlBody = injectMapEmbeds(htmlBody, prefix)
 
 	return title, htmlBody, linkTargets, linkHrefs, nil
 }

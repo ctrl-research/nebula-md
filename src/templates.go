@@ -375,6 +375,8 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 	/* Embedded graph (via graph directive in a page) */
 	.graph-embed { width: 100%; height: 480px; margin: 1.8em 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: #06060f; }
 	.graph-embed iframe { display: block; width: 100%; height: 100%; border: 0; }
+	.map-embed { width: 100%; height: 480px; margin: 1.8em 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg-elev); }
+	.map-embed iframe { display: block; width: 100%; height: 100%; border: 0; }
 
 	/* ---------- Mobile chrome (hidden on desktop) ---------- */
 	.mobile-header, .nav-scrim { display: none; }
