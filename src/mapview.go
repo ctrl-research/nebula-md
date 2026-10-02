@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -71,12 +70,20 @@ func buildMapPins(vaultDir string) []MapPin {
 	return pins
 }
 
-// mapEmbedDirective matches `%% map %%` or `%% map tag=review %%` (or the HTML
-// comment equivalents). The optional tag limits the map to pages with that tag.
-var mapEmbedDirective = regexp.MustCompile(`(?i)%%\s*map(?:\s+tag=([^\s%]+))?\s*%%|<!--\s*map(?:\s+tag=(\S+?))?\s*-->`)
+// mapEmbedDirective matches `%% map %%` with optional key=value options, e.g.
+// `%% map tag=review exclude=gauntlet icons=cafe:☕,*:🍴 %%` (or the HTML comment
+// equivalent). Options are passed through to the viewer as query parameters:
+//
+//	tag=a,b      only pages with at least one of these tags
+//	exclude=a,b  drop pages with any of these tags
+//	icons=t:i,…  draw pins as icon i for pages tagged t; the first match in the
+//	             list wins and `*` is the fallback. Without it, pins are dots.
+var mapEmbedDirective = regexp.MustCompile(`(?i)%%\s*map((?:\s+[a-z]+=[^\s%]+)*)\s*%%|<!--\s*map((?:\s+[a-z]+=\S+?)*)\s*-->`)
 
-// The tag is hex-encoded into the sentinel so markdown conversion can't mangle it
-// (underscores, typographer quotes, etc).
+var mapEmbedOptions = map[string]bool{"tag": true, "exclude": true, "icons": true}
+
+// The options are hex-encoded into the sentinel so markdown conversion can't mangle
+// them (underscores, typographer quotes, emoji, etc).
 var mapEmbedSentinelRe = regexp.MustCompile(`NEBULAMAPEMBEDxZ9([0-9a-f]*)END`)
 
 // protectMapEmbeds replaces map directives with a plain-text sentinel, mirroring
@@ -84,9 +91,23 @@ var mapEmbedSentinelRe = regexp.MustCompile(`NEBULAMAPEMBEDxZ9([0-9a-f]*)END`)
 func protectMapEmbeds(data []byte) []byte {
 	return mapEmbedDirective.ReplaceAllFunc(data, func(match []byte) []byte {
 		sub := mapEmbedDirective.FindSubmatch(match)
-		tag := string(sub[1]) + string(sub[2])
-		return []byte("\n\nNEBULAMAPEMBEDxZ9" + hex.EncodeToString([]byte(tag)) + "END\n\n")
+		opts := string(sub[1]) + string(sub[2])
+		return []byte("\n\nNEBULAMAPEMBEDxZ9" + hex.EncodeToString([]byte(opts)) + "END\n\n")
 	})
+}
+
+// mapEmbedQuery turns the directive's options into the viewer's query string.
+// Unknown options are ignored.
+func mapEmbedQuery(opts string) string {
+	q := url.Values{"embed": {"1"}}
+	for _, field := range strings.Fields(opts) {
+		key, val, ok := strings.Cut(field, "=")
+		key = strings.ToLower(key)
+		if ok && val != "" && mapEmbedOptions[key] {
+			q.Set(key, val)
+		}
+	}
+	return q.Encode()
 }
 
 // injectMapEmbeds swaps map sentinels for an iframe embedding the map viewer.
@@ -94,11 +115,9 @@ func injectMapEmbeds(html []byte, prefix string) []byte {
 	if !mapEmbedSentinelRe.Match(html) {
 		return html
 	}
-	iframe := func(hexTag []byte) []byte {
-		src := prefix + "map/map.html?embed=1"
-		if tag, err := hex.DecodeString(string(hexTag)); err == nil && len(tag) > 0 {
-			src += "&amp;tag=" + urlQueryEscape(string(tag))
-		}
+	iframe := func(hexOpts []byte) []byte {
+		opts, _ := hex.DecodeString(string(hexOpts))
+		src := prefix + "map/map.html?" + strings.ReplaceAll(mapEmbedQuery(string(opts)), "&", "&amp;")
 		return []byte(`<div class="map-embed"><iframe src="` + src +
 			`" loading="lazy" title="Map" allowfullscreen></iframe></div>`)
 	}
@@ -112,20 +131,8 @@ func injectMapEmbeds(html []byte, prefix string) []byte {
 	})
 }
 
-func urlQueryEscape(s string) string {
-	var b bytes.Buffer
-	for _, c := range []byte(s) {
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' {
-			b.WriteByte(c)
-		} else {
-			fmt.Fprintf(&b, "%%%02X", c)
-		}
-	}
-	return b.String()
-}
-
 // writeMapViewer writes map/map.html: a chrome-free Leaflet map of every pin,
-// filterable with ?tag=. Pins link back into the site (target=_top so clicking
+// configured by query parameters (see mapEmbedDirective). Pins link back into the site (target=_top so clicking
 // from an embed navigates the page, not the iframe).
 func writeMapViewer(outputDir string, pins []MapPin, siteTheme string, siteName string) error {
 	mapDir := filepath.Join(outputDir, "map")
@@ -175,6 +182,12 @@ const mapViewerTemplate = `<!DOCTYPE html>
         .leaflet-popup-content a.pin-title:hover { color: var(--link); }
         .pin-tags { margin-top: 4px; color: var(--muted); font-size: 12px; }
         .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+        .pin-icon span {
+            display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; box-sizing: border-box;
+            border-radius: 50%; background: var(--card-bg); border: 2px solid var(--link); font-size: 15px; line-height: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35); transition: transform 0.12s;
+        }
+        .pin-icon:hover span { transform: scale(1.15); }
         #empty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; z-index: 1000; pointer-events: none; }
     </style>
 </head>
@@ -185,8 +198,23 @@ const mapViewerTemplate = `<!DOCTYPE html>
     <script>
     var pins = {{PINS}};
     var params = new URLSearchParams(location.search);
-    var tag = params.get('tag');
-    if (tag) pins = pins.filter(function(p) { return (p.tags || []).indexOf(tag) !== -1; });
+    function list(name) { return (params.get(name) || '').split(',').filter(Boolean); }
+    function hasAny(p, tags) { return tags.some(function(t) { return (p.tags || []).indexOf(t) !== -1; }); }
+    var only = list('tag'), exclude = list('exclude');
+    pins = pins.filter(function(p) { return (!only.length || hasAny(p, only)) && !hasAny(p, exclude); });
+
+    // icons=cafe:☕,bar:🍸,*:🍴 — the first rule whose tag the page has wins.
+    var iconRules = list('icons').map(function(r) {
+        var i = r.indexOf(':');
+        return i > 0 ? { tag: r.slice(0, i), icon: r.slice(i + 1) } : null;
+    }).filter(Boolean);
+    function iconFor(p) {
+        for (var i = 0; i < iconRules.length; i++) {
+            var r = iconRules[i];
+            if (r.tag === '*' || (p.tags || []).indexOf(r.tag) !== -1) return r.icon;
+        }
+        return null;
+    }
 
     var dark = document.documentElement.getAttribute('data-theme') !== 'light';
     var accent = getComputedStyle(document.documentElement).getPropertyValue('--link').trim();
@@ -198,12 +226,14 @@ const mapViewerTemplate = `<!DOCTYPE html>
 
     function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
     var markers = pins.map(function(p) {
-        var tags = (p.tags || []).filter(function(t) { return t !== tag; });
+        var tags = (p.tags || []).filter(function(t) { return only.indexOf(t) === -1; });
         var html = '<a class="pin-title" target="_top" href="../' + encodeURI(p.href) + '">' + esc(p.title) + '</a>' +
             (tags.length ? '<div class="pin-tags">' + tags.map(esc).join(' · ') + '</div>' : '');
-        return L.circleMarker([p.lat, p.lng], {
-            radius: 7, weight: 2, color: dark ? '#0b0d11' : '#ffffff', fillColor: accent, fillOpacity: 0.95
-        }).bindPopup(html).bindTooltip(esc(p.title), { direction: 'top', offset: [0, -6] }).addTo(map);
+        var icon = iconFor(p);
+        var marker = icon
+            ? L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'pin-icon', html: '<span>' + esc(icon) + '</span>', iconSize: [30, 30], iconAnchor: [15, 15] }) })
+            : L.circleMarker([p.lat, p.lng], { radius: 7, weight: 2, color: dark ? '#0b0d11' : '#ffffff', fillColor: accent, fillOpacity: 0.95 });
+        return marker.bindPopup(html).bindTooltip(esc(p.title), { direction: 'top', offset: [0, icon ? -14 : -6] }).addTo(map);
     });
 
     // Open on the main cluster rather than every pin, so a couple of far-flung
