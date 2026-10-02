@@ -77,10 +77,14 @@ func buildMapPins(vaultDir string) []MapPin {
 //	tag=a,b      only pages with at least one of these tags
 //	exclude=a,b  drop pages with any of these tags
 //	icons=t:i,…  draw pins as icon i for pages tagged t; the first match in the
-//	             list wins and `*` is the fallback. Without it, pins are dots.
+//	             list wins and `*` is the fallback. An optional third part names
+//	             the category in the hover card and legend (`*:🍴:restaurant`).
+//	             Without it, pins are dots and there is no legend.
+//	hide=a,b     tags to leave out of the hover card (e.g. WIP, city tags).
+//	             Symbol-only tags (⭐⭐⭐, 💸💸, $$) are shown as badges.
 var mapEmbedDirective = regexp.MustCompile(`(?i)%%\s*map((?:\s+[a-z]+=[^\s%]+)*)\s*%%|<!--\s*map((?:\s+[a-z]+=\S+?)*)\s*-->`)
 
-var mapEmbedOptions = map[string]bool{"tag": true, "exclude": true, "icons": true}
+var mapEmbedOptions = map[string]bool{"tag": true, "exclude": true, "icons": true, "hide": true}
 
 // The options are hex-encoded into the sentinel so markdown conversion can't mangle
 // them (underscores, typographer quotes, emoji, etc).
@@ -191,16 +195,27 @@ const mapViewerTemplate = `<!DOCTYPE html>
         }
         .pin-dot, .pin-icon { transition: transform 0.12s; }
         .pin:hover .pin-dot, .pin:hover .pin-icon { transform: scale(1.15); }
-        .maplibregl-popup-content { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 11px 26px 11px 14px; font-family: inherit; font-size: 13px; line-height: 1.4; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); }
+        .maplibregl-popup-content { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 10px 13px; font-family: inherit; font-size: 13px; line-height: 1.4; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); }
         .maplibregl-popup-anchor-bottom .maplibregl-popup-tip, .maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip, .maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip { border-top-color: var(--card-bg); }
         .maplibregl-popup-anchor-top .maplibregl-popup-tip, .maplibregl-popup-anchor-top-left .maplibregl-popup-tip, .maplibregl-popup-anchor-top-right .maplibregl-popup-tip { border-bottom-color: var(--card-bg); }
         .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--card-bg); }
         .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--card-bg); }
-        .maplibregl-popup-close-button { color: var(--muted); font-size: 16px; right: 4px; top: 2px; }
-        .maplibregl-popup-close-button:hover { background: none; color: var(--heading); }
-        a.pin-title { color: var(--heading); font-weight: 600; text-decoration: none; font-size: 14px; }
-        a.pin-title:hover { color: var(--link); }
-        .pin-tags { margin-top: 4px; color: var(--muted); font-size: 12px; }
+        .card { display: block; color: inherit; text-decoration: none; min-width: 140px; }
+        .card-title { color: var(--heading); font-weight: 600; font-size: 14px; }
+        a.card:hover .card-title { color: var(--link); }
+        .card-kind { margin-top: 3px; color: var(--muted); font-size: 12px; }
+        .card-badges { margin-top: 5px; font-size: 12px; letter-spacing: 0.02em; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+        #legend { position: absolute; left: 10px; bottom: 10px; z-index: 3; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; font-size: 12px; color: var(--text); box-shadow: 0 6px 20px -8px rgba(0,0,0,0.45); max-width: calc(100% - 20px); }
+        #legend[hidden] { display: none; }
+        #legend button { all: unset; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 7px 11px; font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+        #legend button:hover, #legend button:focus-visible { color: var(--heading); }
+        #legend .chev { display: inline-block; transition: transform 0.15s; }
+        #legend.collapsed .chev { transform: rotate(-90deg); }
+        #legend ul { list-style: none; margin: 0; padding: 0 11px 9px; }
+        #legend.collapsed ul { display: none; }
+        #legend li { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+        #legend .ico { width: 18px; text-align: center; font-size: 14px; }
+        #legend .n { margin-left: auto; padding-left: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
         .maplibregl-ctrl-group { background: var(--card-bg); border: 1px solid var(--border); box-shadow: none !important; }
         .maplibregl-ctrl-group button + button { border-top-color: var(--border); }
         [data-theme="dark"] .maplibregl-ctrl-icon { filter: invert(1) brightness(0.8); }
@@ -213,6 +228,7 @@ const mapViewerTemplate = `<!DOCTYPE html>
 <body>
     <div id="map"></div>
     <div id="empty">No pages with a location yet.</div>
+    <div id="legend" hidden><button type="button" aria-expanded="true"><span class="chev">▾</span>Legend</button><ul></ul></div>
     <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js" crossorigin=""></script>
     <script>
     var pins = {{PINS}};
@@ -222,15 +238,17 @@ const mapViewerTemplate = `<!DOCTYPE html>
     var only = list('tag'), exclude = list('exclude');
     pins = pins.filter(function(p) { return (!only.length || hasAny(p, only)) && !hasAny(p, exclude); });
 
-    // icons=cafe:☕,bar:🍸,*:🍴 — the first rule whose tag the page has wins.
+    // icons=cafe:☕,bar:🍸,*:🍴:restaurant — the first rule whose tag the page has
+    // wins; the optional third part labels the category (defaults to the tag).
     var iconRules = list('icons').map(function(r) {
-        var i = r.indexOf(':');
-        return i > 0 ? { tag: r.slice(0, i), icon: r.slice(i + 1) } : null;
+        var parts = r.split(':');
+        if (parts.length < 2 || !parts[0] || !parts[1]) return null;
+        return { tag: parts[0], icon: parts[1], label: parts[2] || (parts[0] === '*' ? 'other' : parts[0].replace(/_/g, ' ')), count: 0 };
     }).filter(Boolean);
-    function iconFor(p) {
+    function ruleFor(p) {
         for (var i = 0; i < iconRules.length; i++) {
             var r = iconRules[i];
-            if (r.tag === '*' || (p.tags || []).indexOf(r.tag) !== -1) return r.icon;
+            if (r.tag === '*' || (p.tags || []).indexOf(r.tag) !== -1) return r;
         }
         return null;
     }
@@ -295,18 +313,74 @@ const mapViewerTemplate = `<!DOCTYPE html>
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
 
     function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    // Tags with no letters or digits (⭐⭐⭐⭐, 💸💸, $$) read as ratings/prices, so
+    // they get their own row of badges; word tags describe the place.
+    function isSymbolTag(t) { return !/[\p{L}\p{N}]/u.test(t); }
+    var hidden = list('hide').concat(only);
+
+    // Hover (or tap, on touch screens) shows a card; clicking a pin opens the page.
+    var canHover = window.matchMedia('(hover: hover)').matches;
+    var card = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '280px', className: 'pin-card' });
+    var cardFor = null;
+    function go(p) { window.open('../' + encodeURI(p.href), '_top'); }
+    function showCard(p, rule) {
+        var words = (p.tags || []).filter(function(t) {
+            return !isSymbolTag(t) && hidden.indexOf(t) === -1 && !(rule && t === rule.tag);
+        }).map(function(t) { return t.replace(/_/g, ' '); });
+        var kind = (rule ? [rule.icon + ' ' + rule.label] : []).concat(words);
+        var badges = (p.tags || []).filter(isSymbolTag);
+        card.setOffset(rule ? 19 : 11).setLngLat([p.lng, p.lat]).setHTML(
+            '<a class="card" target="_top" href="../' + encodeURI(p.href) + '">' +
+            '<div class="card-title">' + esc(p.title) + '</div>' +
+            (kind.length ? '<div class="card-kind">' + kind.map(esc).join(' · ') + '</div>' : '') +
+            (badges.length ? '<div class="card-badges">' + badges.map(function(b) { return '<span>' + esc(b) + '</span>'; }).join('') + '</div>' : '') +
+            '</a>').addTo(map);
+        cardFor = p;
+    }
+    function hideCard() { card.remove(); cardFor = null; }
+
     pins.forEach(function(p) {
-        var tags = (p.tags || []).filter(function(t) { return only.indexOf(t) === -1; });
-        var icon = iconFor(p);
+        var rule = ruleFor(p);
+        if (rule) rule.count++;
         var el = document.createElement('div');
         el.className = 'pin';
-        el.title = p.title;
-        el.innerHTML = icon ? '<div class="pin-icon">' + esc(icon) + '</div>' : '<div class="pin-dot"></div>';
-        var popup = new maplibregl.Popup({ offset: icon ? 18 : 10, maxWidth: '260px' }).setHTML(
-            '<a class="pin-title" target="_top" href="../' + encodeURI(p.href) + '">' + esc(p.title) + '</a>' +
-            (tags.length ? '<div class="pin-tags">' + tags.map(esc).join(' · ') + '</div>' : ''));
-        new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).setPopup(popup).addTo(map);
+        el.setAttribute('role', 'link');
+        el.setAttribute('aria-label', p.title);
+        el.innerHTML = rule ? '<div class="pin-icon">' + esc(rule.icon) + '</div>' : '<div class="pin-dot"></div>';
+        if (canHover) {
+            el.addEventListener('mouseenter', function() { showCard(p, rule); });
+            el.addEventListener('mouseleave', hideCard);
+        }
+        el.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // Touch: the first tap previews, a second tap (or tapping the card) opens.
+            if (canHover || cardFor === p) go(p); else showCard(p, rule);
+        });
+        new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map);
     });
+    map.on('click', hideCard);
+
+    // Collapsible legend of the icon categories in use, with counts.
+    var used = iconRules.filter(function(r) { return r.count > 0; });
+    if (used.length) {
+        var legend = document.getElementById('legend'), btn = legend.querySelector('button');
+        legend.querySelector('ul').innerHTML = used.map(function(r) {
+            return '<li><span class="ico">' + esc(r.icon) + '</span>' + esc(r.label) + '<span class="n">' + r.count + '</span></li>';
+        }).join('');
+        var collapsed = window.innerWidth < 560;
+        try { var saved = localStorage.getItem('nebula-map-legend'); if (saved) collapsed = saved === 'collapsed'; } catch (e) {}
+        function setCollapsed(c) {
+            legend.classList.toggle('collapsed', c);
+            btn.setAttribute('aria-expanded', String(!c));
+        }
+        setCollapsed(collapsed);
+        btn.addEventListener('click', function() {
+            collapsed = !collapsed;
+            setCollapsed(collapsed);
+            try { localStorage.setItem('nebula-map-legend', collapsed ? 'collapsed' : 'open'); } catch (e) {}
+        });
+        legend.hidden = false;
+    }
 
     // Open on the main cluster rather than every pin, so a couple of far-flung
     // pages (travel) don't zoom the map out to a continent. Zoom out to see the rest.

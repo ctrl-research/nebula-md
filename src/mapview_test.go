@@ -40,6 +40,7 @@ func TestMapEmbedRoundTrip(t *testing.T) {
 		{"%% map tag=review exclude=gauntlet icons=cafe:☕,*:🍴 %%",
 			`src="../map/map.html?embed=1&amp;exclude=gauntlet&amp;icons=cafe%3A%E2%98%95%2C%2A%3A%F0%9F%8D%B4&amp;tag=review"`},
 		{"%% map bogus=1 tag=review %%", `src="../map/map.html?embed=1&amp;tag=review"`},
+		{"%% map tag=review hide=WIP,toronto %%", `src="../map/map.html?embed=1&amp;hide=WIP%2Ctoronto&amp;tag=review"`},
 		{"<!-- map tag=review -->", `src="../map/map.html?embed=1&amp;tag=review"`},
 	}
 	for _, c := range cases {
