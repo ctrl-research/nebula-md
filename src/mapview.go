@@ -205,7 +205,7 @@ const mapViewerTemplate = `<!DOCTYPE html>
         a.card:hover .card-title { color: var(--link); }
         .card-kind { margin-top: 3px; color: var(--muted); font-size: 12px; }
         .card-badges { margin-top: 5px; font-size: 12px; letter-spacing: 0.02em; display: flex; flex-wrap: wrap; gap: 4px 10px; }
-        #legend { position: absolute; left: 10px; bottom: 10px; z-index: 3; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; font-size: 12px; color: var(--text); box-shadow: 0 6px 20px -8px rgba(0,0,0,0.45); max-width: calc(100% - 20px); }
+        #legend { position: absolute; top: 10px; right: 10px; z-index: 3; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; font-size: 12px; color: var(--text); box-shadow: 0 6px 20px -8px rgba(0,0,0,0.45); max-width: calc(100% - 20px); }
         #legend[hidden] { display: none; }
         #legend button { all: unset; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 7px 11px; font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
         #legend button:hover, #legend button:focus-visible { color: var(--heading); }

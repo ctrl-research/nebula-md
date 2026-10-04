@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -57,6 +58,25 @@ func TestMapEmbedRoundTrip(t *testing.T) {
 		}
 		if strings.Contains(html, "NEBULAMAPEMBED") || strings.Contains(html, "<p><div") {
 			t.Errorf("%q: sentinel or stray paragraph left in\n%s", c.directive, html)
+		}
+	}
+}
+
+// TestMapLegendPositionedTopRight guards against regressing the map legend back
+// to the bottom-left. The assertion is deliberately loose: it checks the anchor
+// corners, not exact offsets, so spacing tweaks stay free.
+func TestMapLegendPositionedTopRight(t *testing.T) {
+	m := regexp.MustCompile(`#legend\s*\{([^}]*)\}`).FindStringSubmatch(mapViewerTemplate)
+	if m == nil {
+		t.Fatal("mapViewerTemplate has no #legend rule")
+	}
+	rule := m[1]
+	if !strings.Contains(rule, "top:") || !strings.Contains(rule, "right:") {
+		t.Errorf("#legend should anchor top-right, got: %s", strings.TrimSpace(rule))
+	}
+	for _, bad := range []string{"left:", "bottom:"} {
+		if strings.Contains(rule, bad) {
+			t.Errorf("#legend should not use %s, got: %s", bad, strings.TrimSpace(rule))
 		}
 	}
 }
