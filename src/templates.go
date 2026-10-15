@@ -217,6 +217,34 @@ func generateHTMLTemplate(title string, htmlContent string, sourcePath string, p
 		font-size: 13.5px; line-height: 1.65; color: var(--text);
 	}
 	.markdown-body pre code { background: none; border: 0; padding: 0; font-size: inherit; color: inherit; }
+	/* Mermaid diagrams — the source shows as a code block until the script renders it.
+	   Diagrams never shrink below a readable size; wider ones scroll inside the frame. */
+	.mermaid-frame { position: relative; margin: 1.6em 0; }
+	.markdown-body .mermaid-frame pre.mermaid { margin: 0; padding: 22px; line-height: normal; }
+	.markdown-body pre.mermaid[data-processed] { font-family: inherit; }
+	.markdown-body pre.mermaid svg, .mermaid-overlay-panel svg { display: block; margin: 0 auto; }
+	.mermaid-expand {
+		position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; display: grid; place-items: center;
+		border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--muted);
+		cursor: pointer; opacity: 0; transition: opacity 0.15s ease, color 0.15s ease;
+	}
+	.mermaid-expand svg { width: 14px; height: 14px; }
+	.mermaid-expand:hover { color: var(--heading); }
+	.mermaid-frame:hover .mermaid-expand, .mermaid-expand:focus-visible, .mermaid-overlay .mermaid-expand { opacity: 1; }
+	@media (hover: none) { .mermaid-expand { opacity: 1; } }
+	.mermaid-overlay {
+		position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+		padding: 24px; background: var(--scrim); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+	}
+	.mermaid-overlay-panel {
+		max-width: 100%%; max-height: 100%%; overflow: auto; padding: 32px;
+		background: var(--bg-elev); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg);
+	}
+	.mermaid-overlay .mermaid-expand { position: fixed; top: 20px; right: 20px; }
+	/* Fade whichever edge has more diagram scrolled out of view */
+	.markdown-body pre.mermaid.fade-start { -webkit-mask-image: linear-gradient(to right, transparent, #000 48px); mask-image: linear-gradient(to right, transparent, #000 48px); }
+	.markdown-body pre.mermaid.fade-end { -webkit-mask-image: linear-gradient(to left, transparent, #000 48px); mask-image: linear-gradient(to left, transparent, #000 48px); }
+	.markdown-body pre.mermaid.fade-start.fade-end { -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100%% - 48px), transparent); mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100%% - 48px), transparent); }
 	.markdown-body :not(pre) > code {
 		background: var(--accent-soft); color: var(--heading); border-radius: 6px;
 		padding: 0.15em 0.4em; font-size: 0.86em; overflow-wrap: anywhere;
@@ -1041,6 +1069,183 @@ window.navTree = %[11]s;
         });
         h.appendChild(a);
     });
+})();
+</script>
+<script type="module">
+// ---- Mermaid: render diagram blocks, re-rendering when the theme flips ----
+(async function() {
+    var blocks = Array.prototype.slice.call(document.querySelectorAll('.markdown-body pre.mermaid'));
+    if (!blocks.length) return;
+    var mermaid = (await import('https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.esm.min.mjs')).default;
+    var EXPAND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+    var CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    // Smallest scale a diagram is shrunk to in the page before it scrolls instead.
+    var MIN_INLINE_SCALE = 0.75;
+
+    blocks.forEach(function(b) {
+        b.dataset.source = b.textContent;
+        var frame = document.createElement('div');
+        frame.className = 'mermaid-frame';
+        b.parentNode.insertBefore(frame, b);
+        frame.appendChild(b);
+        var btn = document.createElement('button');
+        btn.className = 'mermaid-expand';
+        btn.type = 'button';
+        btn.title = 'Expand diagram';
+        btn.setAttribute('aria-label', 'Expand diagram');
+        btn.innerHTML = EXPAND;
+        btn.addEventListener('click', function() { openOverlay(b); });
+        frame.appendChild(btn);
+    });
+
+    // Size an svg to its natural (viewBox) size times a scale clamped to [min, max],
+    // fitting availW (and availH, when given) where the clamp allows.
+    function fit(svg, availW, availH, min, max) {
+        var vb = svg.viewBox && svg.viewBox.baseVal;
+        if (!vb || !vb.width) return;
+        var scale = availW / vb.width;
+        if (availH) scale = Math.min(scale, availH / vb.height);
+        scale = Math.max(min, Math.min(max, scale));
+        svg.removeAttribute('width');
+        svg.removeAttribute('height');
+        svg.style.maxWidth = 'none';
+        svg.style.width = Math.round(vb.width * scale) + 'px';
+        svg.style.height = Math.round(vb.height * scale) + 'px';
+    }
+    function fitInline(b) {
+        var svg = b.querySelector('svg');
+        if (!svg) return;
+        var cs = getComputedStyle(b);
+        fit(svg, b.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), 0, MIN_INLINE_SCALE, 1);
+        updateFades(b);
+    }
+    function updateFades(b) {
+        var max = b.scrollWidth - b.clientWidth;
+        b.classList.toggle('fade-start', max > 1 && b.scrollLeft > 1);
+        b.classList.toggle('fade-end', max > 1 && b.scrollLeft < max - 1);
+    }
+    blocks.forEach(function(b) { b.addEventListener('scroll', function() { updateFades(b); }, { passive: true }); });
+    new ResizeObserver(function() { blocks.forEach(fitInline); }).observe(document.querySelector('.markdown-body'));
+
+    // Full-screen view: fit the viewport, enlarging small diagrams a little and
+    // showing big ones at full size with scrolling.
+    function openOverlay(b) {
+        var src = b.querySelector('svg');
+        if (!src) return;
+        var opener = document.activeElement;
+        var overlay = document.createElement('div');
+        overlay.className = 'mermaid-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Diagram');
+        var panel = document.createElement('div');
+        panel.className = 'mermaid-overlay-panel';
+        var svg = src.cloneNode(true);
+        panel.appendChild(svg);
+        var close = document.createElement('button');
+        close.className = 'mermaid-expand';
+        close.type = 'button';
+        close.title = 'Close';
+        close.setAttribute('aria-label', 'Close diagram');
+        close.innerHTML = CLOSE;
+        overlay.appendChild(panel);
+        overlay.appendChild(close);
+        document.body.appendChild(overlay);
+        fit(svg, window.innerWidth - 48 - 64, window.innerHeight - 48 - 64, 1, 1.6);
+        function dismiss() {
+            overlay.remove();
+            document.removeEventListener('keydown', onKey);
+            if (opener) opener.focus();
+        }
+        function onKey(e) { if (e.key === 'Escape') dismiss(); }
+        close.addEventListener('click', dismiss);
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) dismiss(); });
+        document.addEventListener('keydown', onKey);
+        close.focus();
+    }
+
+    // Blend two #rrggbb colours; t=0 gives a, t=1 gives b.
+    function mix(a, b, t) {
+        var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+        var ch = function(shift) {
+            var x = (pa >> shift) & 255, y = (pb >> shift) & 255;
+            return Math.round(x + (y - x) * t);
+        };
+        return '#' + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1);
+    }
+
+    // Theme the diagrams from the site's own tokens so they match light and dark mode.
+    function render() {
+        var css = getComputedStyle(document.documentElement);
+        var token = function(name) { return css.getPropertyValue(name).trim(); };
+        var dark = document.documentElement.getAttribute('data-theme') !== 'light';
+        var card = token('--card-bg'), elev = token('--bg-elev'), accent = token('--accent');
+        var muted = token('--muted'), heading = token('--heading'), stub = token('--stub');
+        var nodeFill = mix(card, accent, dark ? 0.14 : 0.07);
+        var nodeLine = mix(card, accent, dark ? 0.55 : 0.45);
+        var shadow = dark ? 'rgba(0,0,0,0.35)' : 'rgba(15,23,42,0.08)';
+        mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: 'strict',
+            theme: 'base',
+            flowchart: { curve: 'basis', nodeSpacing: 34, rankSpacing: 44, padding: 14 },
+            sequence: { actorMargin: 44, boxMargin: 8, noteMargin: 10, messageMargin: 34, mirrorActors: false },
+            themeVariables: {
+                darkMode: dark,
+                fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+                fontSize: '14px',
+                background: elev,
+                primaryColor: nodeFill,
+                primaryTextColor: heading,
+                primaryBorderColor: nodeLine,
+                secondaryColor: mix(card, accent, dark ? 0.08 : 0.04),
+                tertiaryColor: elev,
+                lineColor: mix(elev, muted, 0.8),
+                textColor: token('--text'),
+                clusterBkg: mix(elev, accent, dark ? 0.04 : 0.025),
+                clusterBorder: mix(elev, muted, 0.45),
+                edgeLabelBackground: elev,
+                actorBkg: nodeFill,
+                actorBorder: nodeLine,
+                actorTextColor: heading,
+                actorLineColor: mix(elev, muted, 0.4),
+                signalColor: mix(elev, muted, 0.85),
+                signalTextColor: token('--text'),
+                labelBoxBkgColor: nodeFill,
+                labelBoxBorderColor: nodeLine,
+                labelTextColor: heading,
+                loopTextColor: muted,
+                noteBkgColor: mix(card, stub, dark ? 0.14 : 0.1),
+                noteBorderColor: mix(card, stub, 0.45),
+                noteTextColor: heading,
+                activationBkgColor: mix(card, accent, 0.25),
+                activationBorderColor: nodeLine,
+                sequenceNumberColor: dark ? token('--bg') : '#ffffff'
+            },
+            // Softer, rounder shapes than Mermaid's defaults.
+            themeCSS: [
+                '.node rect, .node polygon, .node circle, .node ellipse, .node path { stroke-width: 1px; }',
+                '.node rect, rect.actor, rect.note, rect.labelBox { rx: 9px; ry: 9px; }',
+                '.node, rect.actor { filter: drop-shadow(0 1px 2px ' + shadow + '); }',
+                '.nodeLabel, .actor tspan { font-weight: 500; }',
+                '.cluster rect { rx: 14px; ry: 14px; stroke-dasharray: 5 4; stroke-width: 1px; }',
+                '.cluster-label .nodeLabel { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: ' + muted + '; }',
+                '.flowchart-link { stroke-width: 1.25px; }',
+                '.edgeLabel p, .edgeLabel span { color: ' + muted + '; font-size: 12.5px; }',
+                '.labelBkg, .edgeLabel { border-radius: 6px; }',
+                '.messageLine0, .messageLine1 { stroke-width: 1.25px; }',
+                '.actor-line { stroke-dasharray: 3 4; }',
+                '.loopLine { stroke-dasharray: 4 4; stroke-width: 1px; }',
+                '.messageText, .loopText, .noteText { font-size: 13px; }',
+                'marker[id$="sequencenumber"] circle { fill: ' + accent + '; stroke: none; }',
+                '.sequenceNumber { font-size: 11px; font-weight: 600; }'
+            ].join('\n')
+        });
+        blocks.forEach(function(b) { b.removeAttribute('data-processed'); b.textContent = b.dataset.source; });
+        return mermaid.run({ nodes: blocks, suppressErrors: true }).then(function() { blocks.forEach(fitInline); });
+    }
+    render();
+    new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 })();
 </script>
 </body>
