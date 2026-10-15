@@ -90,6 +90,7 @@ func buildSearchIndex(vaultDir string) []SearchEntry {
 		tags := extractTags(data) // extract tags from raw content (before stripping)
 		title := extractTitle(data) // extract frontmatter/H1 title from raw content
 		data = removeFrontmatter(data)
+		data = stripMermaidBlocks(data)
 		text := string(data)
 		text = stripTags.ReplaceAllString(text, " ")
 		text = stripMdCode.ReplaceAllString(text, "")
@@ -318,7 +319,7 @@ func buildGraph(vaultDir string) (*Graph, map[string][]string, map[string]string
 		if err != nil {
 			return nil
 		}
-		_, targets, _ := extractWikiLinks(data, rel)
+		_, targets, _ := extractWikiLinks(stripMermaidBlocks(data), rel)
 		for _, tgt := range targets {
 			// Skip wiki links to non-markdown files (e.g. [[diagram.drawio]])
 			// The target is a path without extension — check if .md version exists in vault
